@@ -164,12 +164,26 @@ GEN_ICONS = {"CONNECTING": "SORTTIME", "PROCESSING": "TIME", "COMPLETED": "CHECK
 
 def _draw_generate(layout, context, state):
     running = claude_cli.busy()
+    row = layout.row()
+    row.enabled = not running
+    row.prop(state, "backend")
+    if state.gen_error_kind == "quota":
+        other = "claude" if state.backend == "codex" else "codex"
+        row = layout.row()
+        row.operator("claude2blender.switch_backend", text=f"{state.backend.title()} limit reached — switch to {other.title()}")
+    from . import project_state
+    turns = project_state.current().data["conversation"][-6:]
+    if turns:
+        box = layout.box()
+        box.label(text="Conversation")
+        for turn in turns:
+            box.label(text=("You: " if turn["role"] == "user" else turn.get("backend", "Agent").title()+": ")+turn["text"][:120])
     row = layout.row(align=True)
     row.scale_y = 1.6
     if running:
         row.operator("claude2blender.cancel_generate", text="Cancel", icon="CANCEL")
     else:
-        label = "Refine with Claude" if state.gen_follow_up and state.gen_session_id else "Generate with Claude"
+        label = ("Refine with " if state.gen_follow_up and state.gen_session_id else "Generate with ")+state.backend.title()
         row.operator("claude2blender.generate", text=label, icon="LIGHT_SUN")
 
     if state.gen_session_id:

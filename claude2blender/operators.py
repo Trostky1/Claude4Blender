@@ -223,12 +223,31 @@ class C2B_OT_new_conversation(Operator):
 
     def execute(self, context):
         state = get_state(context)
+        claude_cli.cancel()
+        from . import project_state
+        project_state.current().data["conversation"] = []
+        project_state.current().save()
         state.gen_session_id = ""
         state.gen_turns = 0
         state.gen_message = ""
         state.gen_status = "IDLE"
         state.gen_detail = ""
         return {"FINISHED"}
+
+
+class C2B_OT_switch_backend(Operator):
+    """Carry the pending message and conversation to the other backend"""
+    bl_idname = "claude2blender.switch_backend"
+    bl_label = "Switch backend and retry"
+
+    @classmethod
+    def poll(cls, context):
+        return not claude_cli.busy() and get_state(context).gen_error_kind == "quota"
+
+    def execute(self, context):
+        state = get_state(context)
+        state.backend = "claude" if state.backend == "codex" else "codex"
+        return bpy.ops.claude2blender.generate()
 
 
 class C2B_OT_check_cli(Operator):
@@ -914,6 +933,7 @@ _classes = (
     C2B_OT_generate,
     C2B_OT_cancel_generate,
     C2B_OT_new_conversation,
+    C2B_OT_switch_backend,
     C2B_OT_check_cli,
     C2B_OT_copy_request_json,
     C2B_OT_add_reference,

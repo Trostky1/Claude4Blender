@@ -24,7 +24,7 @@ from claude2blender import history, operators, presets, refmatch, scene_tools  #
 
 state = bpy.context.window_manager.claude2blender
 scene = bpy.context.scene
-OUT = os.path.join(HERE, "real_results")
+OUT = os.environ.get("C2B_TEST_OUTPUT", os.path.join(HERE, "real_results"))
 os.makedirs(OUT, exist_ok=True)
 ok = 0
 

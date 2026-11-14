@@ -115,6 +115,9 @@ def permissions_for(state, mode=None):
 
 
 class C2B_State(bpy.types.PropertyGroup):
+    backend: EnumProperty(name="Backend", items=[("claude", "Claude", ""), ("codex", "Codex", "")], default="claude")
+    gen_error_kind: StringProperty()
+
     prompt: StringProperty(
         name="Prompt",
         description="Describe what you want Claude to do",

@@ -1,5 +1,37 @@
 # Claude2Blender vs Blender Director: comparison and merge plan
 
+## Current direction — ASTRA revision 3 (2026-11-13)
+
+This section supersedes conflicting recommendations in the historical comparison
+below. Settled: Blender **5.x+**, one GitHub-only add-on named Claude2Blender,
+external user-owned texture/HDRI folders (never bundle licensed packs), and
+switchable Claude/Codex subscription CLIs with Claude default. Per-message CLI
+launches remain the v1 approach. The add-on owns conversation state; the local
+companion/MCP may read and stage, never apply or execute scene changes.
+
+Implementation status, 2026-11-14:
+
+- Step 1 memo and Codex image/schema probe: complete; restricted-read privacy still unverified.
+- Step 2 backend adapters, owned conversation, quota switch and Material/Environment
+  stand-in tests: implemented. Four-call real-CLI staging smoke is prepared but
+  was not executed because automatic approval review hit a usage limit.
+- Step 3 research: `docs/RENDER_TECHNIQUES.md`, sourced with verification limits.
+- Step 4 local thin slice: original handheld fixture, note, inspected proposal,
+  Preview/Apply, owner-approved 48-frame orbit rendered on a copy. This is not
+  evidence of an end-to-end live AI correction; the correction is a known fixture.
+- Step 5: 12 measured baselines and a partial real-Codex B/C/D experiment are recorded
+  in `docs/VISION_EXPERIMENT.md`. Claude's harness missed image paths; Codex mask
+  failures stopped the run after two failures. No consistent improvement was found
+  in completed cases; keep measured-only matching as default, withhold vision priors.
+  The complete both-backend decision is inconclusive and handed off.
+- Step 6: render-note picking, LightPaint, seeded recipe, QA review, a capped manual
+  critique loop, captured-light Finish, reviewed Pack and MP4 encoding implemented.
+  This is a validation preview, not a claim of production realism or macOS support verified.
+
+Current evidence and limits: [implementation report](docs/IMPLEMENTATION_REPORT.md),
+[handoff blockers](HANDOFF_BLOCKERS.md). Production-release gates remain open.
+Exact undo across reopen is not implemented; persisted history is an audit trail.
+
 Sources: this repo (Claude2Blender v0.5, ~7k lines), `C:\Users\bentr\Blender Director`
 (split out of KeyShot Director, v0.5.0, Blender 5.3), and the chat history of the
 "Claude integration with Blender" session (textures, lighting, CMF, Final Touch / Mule idea).

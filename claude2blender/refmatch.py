@@ -67,7 +67,7 @@ if cam is not None:
     d = ctr - cam.matrix_world.translation; d.z = 0
     if d.length > 1e-6: fwd = d.normalized()
 az0 = math.atan2(-fwd.y, -fwd.x)                       # azimuth 0 = toward the camera
-dist, size = rad * %(DIST_R)r, rad * %(SIZE_R)r
+dist, size = rad * %(DIST_R)r, rad * %(SIZE_R)r * args.get("source_scale", 1.0)
 energy = %(BASE_W)r * (dist * unit / 0.5) ** 2
 lights = []
 def add(name, elev, az):
@@ -125,8 +125,8 @@ print("C2B_BASIS_OK")
 ''' % {"DIST_R": DIST_R, "SIZE_R": SIZE_R, "BASE_W": BASE_W_AT_HALF_M, "RINGS": RINGS}
 
 
-def basis_command(blend_copy, out_exr, targets, samples=96, width=640):
-    args = json.dumps({"out": out_exr, "targets": list(targets), "samples": int(samples), "width": int(width)})
+def basis_command(blend_copy, out_exr, targets, samples=96, width=640, source_scale=1.0):
+    args = json.dumps({"out": out_exr, "targets": list(targets), "samples": int(samples), "width": int(width), "source_scale": float(source_scale)})
     kw = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
     return [bpy.app.binary_path, "-b", "--factory-startup", blend_copy, "--python-expr", BASIS_SCRIPT,
             "--", args], kw
@@ -332,12 +332,16 @@ def _resize_to(img, h, w):
     return img[ys][:, xs]
 
 
-def solve(basis_exr, reference, bbox=None):
+def solve(basis_exr, reference, bbox=None, enabled_lights=None):
     """Fit the basis to the reference. Returns a result dict (lights, world, background, residuals)."""
     np = _np()
     meta = json.load(open(basis_exr + ".json"))
     groups, bmask, albedo = read_basis(basis_exr)
     names = sorted(g for g in groups if g.startswith("L"))
+    if enabled_lights is not None:
+        if not enabled_lights or set(enabled_lights)-set(names):
+            raise ValueError("Vision prior must name existing basis lights")
+        names = [g for g in names if g in enabled_lights]
     shade = {g: (groups[g] / np.maximum(albedo, 0.02)) if albedo is not None else groups[g] for g in names}
     ref = read_image(reference)
     rmask = reference_mask(ref, bbox)
@@ -501,7 +505,10 @@ def start_match(context, reference, targets, samples=96, width=640, bbox=None):
     """Save a temporary copy of the scene and start a MatchJob on it. Your file is not changed."""
     if context.scene.camera is None:
         raise RuntimeError("Add a camera first: the match is measured through the scene camera")
-    workdir = tempfile.mkdtemp(prefix="c2b_match_")
+    from .claude_cli import workspace_dir
+    # Blender expands '#' in output paths as frame placeholders. System sandbox
+    # temp paths can contain '#', so use the add-on's user workspace instead.
+    workdir = tempfile.mkdtemp(prefix="c2b_match_", dir=workspace_dir())
     copy = os.path.join(workdir, "scene_copy.blend")
     bpy.ops.wm.save_as_mainfile(filepath=copy, copy=True, check_existing=False)
     return MatchJob(copy, workdir, reference, targets, samples, width, bbox).start()

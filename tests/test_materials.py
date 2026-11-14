@@ -21,6 +21,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 import claude2blender as addon  # noqa: E402
 
 addon.register()
+bpy.context.preferences.system.use_online_access = True
 from claude2blender import claude_cli, history, materials, ui  # noqa: E402
 
 sys.path.insert(0, HERE)
@@ -287,6 +288,8 @@ out = {"summary": "Bead-blasted anodised aluminium on Housing",
        "material": {"name": "Anodised Graphite", "base_color_hex": "#2B2D30", "roughness": 0.42, "metallic": 1.0,
                     "surface": "fine bead-blast grain, ~0.1 mm", "match": "approximate",
                     "limitations": "Exact anodising colour shift needs a measured colour sample."}}
+out.setdefault("material", {'name': '', 'base_color_hex': '', 'roughness': -1, 'metallic': -1, 'surface': '', 'match': 'n/a', 'limitations': ''})
+out.setdefault("scene", {'lighting': '', 'world': '', 'backdrop': '', 'camera': '', 'objects': '', 'render': '', 'match': 'n/a', 'limitations': ''})
 emit({"type": "result", "subtype": "success", "is_error": False, "structured_output": out, "result": json.dumps(out), "session_id": "s-1"})
 '''
 bindir = os.path.join(tmp, "bin")

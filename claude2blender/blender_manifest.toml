@@ -1,13 +1,13 @@
 schema_version = "1.0.0"
 
 id = "claude2blender"
-version = "0.6.0"
+version = "0.7.0"
 name = "Claude2Blender"
-tagline = "Prompt, selection and references for working with Claude"
+tagline = "Reviewable product studio workflows with Claude or Codex"
 maintainer = "Talus"
 type = "add-on"
 
-blender_version_min = "4.2.0"
+blender_version_min = "5.0.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
 
@@ -16,7 +16,7 @@ tags = ["User Interface", "Material", "Lighting", "Render"]
 [permissions]
 files = "Reads your reference images and texture packs, writes temp files"
 clipboard = "Copies the request for Claude Desktop (optional fallback)"
-network = "Runs your installed Claude Code CLI, which talks to Claude"
+network = "Runs signed-in agent CLIs and a paired localhost companion"
 
 [build]
 paths_exclude_pattern = ["__pycache__/", "*.pyc", ".*"]

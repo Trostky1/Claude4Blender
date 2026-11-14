@@ -19,6 +19,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 import claude2blender as addon  # noqa: E402
 
 addon.register()
+bpy.context.preferences.system.use_online_access = True
 from claude2blender import claude_cli, history, ui  # noqa: E402
 sys.path.insert(0, HERE)
 import fake_cli  # noqa: E402
@@ -88,6 +89,8 @@ else:
                    "o.data.materials.clear(); o.data.materials.append(m)\n",
            "message": "Made it a satin blue."}
 emit({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "StructuredOutput", "input": out}]}})
+out.setdefault("material", {'name': '', 'base_color_hex': '', 'roughness': -1, 'metallic': -1, 'surface': '', 'match': 'n/a', 'limitations': ''})
+out.setdefault("scene", {'lighting': '', 'world': '', 'backdrop': '', 'camera': '', 'objects': '', 'render': '', 'match': 'n/a', 'limitations': ''})
 emit({"type": "result", "subtype": "success", "is_error": False, "result": json.dumps(out), "structured_output": out, "session_id": sid})
 '''
 
@@ -146,7 +149,7 @@ claude_cli.pump_until_done(30)
 check(state.gen_status == "COMPLETED" and state.proposal_pending, "result staged in Review & Apply")
 check(state.proposal_summary == "Blue on Cube" and "Gen Blue" in state.proposal_code, "summary and code staged")
 check("Gen Blue" not in bpy.data.materials, "nothing ran: code waits for Apply")
-check(state.gen_session_id == "sess-1234", "session remembered for follow-ups")
+check(bool(state.gen_session_id), "session remembered for follow-ups")
 check(state.gen_outcome == "STAGED" and state.gen_title == "Blue on Cube" and state.gen_targets == "Cube"
       and state.gen_elapsed > 0, "compact card: title, target and time recorded")
 check(ui._card_outcome(state) == ("Staged for review", "TIME"), "card shows Staged for review")
@@ -164,7 +167,7 @@ check("--json-schema" in a and json.loads(a[a.index("--json-schema") + 1])["requ
       "structured output schema passed")
 prompt = a[a.index("-p") + 1]
 check("Make it blue" in prompt and ref in prompt and '"active_object": "Cube"' in prompt, "prompt carries request, image and selection")
-check(call["cwd"] == claude_cli.workspace_dir(), "runs in its own workspace, not a project folder")
+check(os.path.normcase(os.path.abspath(call["cwd"])) == os.path.normcase(os.path.abspath(claude_cli.workspace_dir())), "runs in its own workspace, not a project folder")
 
 # 3. Apply through the normal guarded path
 bpy.ops.claude2blender.apply_proposal()
@@ -183,7 +186,7 @@ state.prompt = "a bit darker"
 bpy.ops.claude2blender.generate()
 claude_cli.pump_until_done(30)
 a = calls()[-1]["args"]
-check("--resume" in a and a[a.index("--resume") + 1] == "sess-1234", "follow-up resumes the conversation")
+check('--resume' not in a and 'conversation' in a[a.index("-p") + 1], "follow-up sends owned conversation without resume")
 check("Follow-up" in a[a.index("-p") + 1] and '"history"' in a[a.index("-p") + 1], "follow-up sends history and fresh context")
 check(state.proposal_summary == "Darker blue on Cube", "refined proposal staged")
 bpy.ops.claude2blender.apply_proposal()
