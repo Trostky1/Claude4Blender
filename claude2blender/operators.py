@@ -413,6 +413,7 @@ def _schedule_rollback(reason):
     """Undo the Apply step once the operator has finished and pushed it."""
 
     def rollback():
+        history.trace(f"rollback via ed.undo: {reason}")
         state = get_state()
         wm = bpy.context.window_manager
         done = False

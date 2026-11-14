@@ -254,6 +254,7 @@ def commit(pending, code, summary, request, preview=False):
         global _preview
         entry["preview"] = True
         _preview = entry
+        trace(f"preview started: {summary}")
         sync_ui()
         return entry
     _append(entry)
@@ -504,6 +505,19 @@ def _append(entry):
 _preview = None
 
 
+def trace(message, stack=False):
+    """Append one line to claude2blender_preview.log in the temp folder (for diagnosing a vanishing preview)."""
+    try:
+        import os, tempfile, time, traceback
+        text = time.strftime("%H:%M:%S ") + message + "\n"
+        if stack:
+            text += "".join(traceback.format_stack(limit=6)[:-1])
+        with open(os.path.join(tempfile.gettempdir(), "claude2blender_preview.log"), "a", encoding="utf-8") as f:
+            f.write(text)
+    except Exception:
+        pass
+
+
 def preview_entry():
     return _preview
 
@@ -528,6 +542,7 @@ def end_preview(keep):
     """Finish the live preview: keep=True moves it into History, False reverts it exactly."""
     global _preview
     entry = _preview
+    trace(f"end_preview keep={keep} has_preview={entry is not None}", stack=True)
     if entry is None:
         return None
     if keep and entry["state"] == UNDONE:
@@ -920,6 +935,7 @@ def sync_after_native_undo():
             ok = state != UNDONE or (_preview["state"] == UNDONE and state == UNDONE)
         except HistoryError:
             ok = False
+        trace(f"undo/redo handler: preview state={_preview['state']} detected={state} ok={ok}")
         if not ok:
             # Ctrl+Z took the preview back: forget it (the scene is already as before).
             _preview["state"] = UNDONE
@@ -979,6 +995,7 @@ def _on_undo_redo(*_args):
 def _on_load_pre(*_args):
     # A different file: the history belongs to the previous one.
     global _preview
+    trace("load_pre: history and preview cleared (a file was loaded)")
     _entries.clear()
     _preview = None
 
