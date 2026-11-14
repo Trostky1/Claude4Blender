@@ -18,7 +18,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 import claude2blender as addon  # noqa: E402
 
 addon.register()
-from claude2blender import ui, operators  # noqa: E402
+from claude2blender import ui, operators, studio  # noqa: E402
 
 FUNCS = bpy.types.UILayout.bl_rna.functions
 calls = []
@@ -62,7 +62,7 @@ class FakePanel:
 
 
 def draw_all(label):
-    for cls in (ui.C2B_PT_main, ui.C2B_PT_selection, ui.C2B_PT_references, ui.C2B_PT_apply, ui.C2B_PT_history, ui.C2B_PT_help):
+    for cls in (ui.C2B_PT_main, ui.C2B_PT_selection, ui.C2B_PT_references, ui.C2B_PT_apply, ui.C2B_PT_history, ui.C2B_PT_help, studio.C2B_PT_studio):
         p = FakePanel()
         if hasattr(cls, "draw_header"):
             cls.draw_header(p, bpy.context)

@@ -1,0 +1,378 @@
+[
+  {
+    "case": 0,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.005439679604023695,
+    "angle_degrees": 0.0,
+    "residuals": {
+      "prod": 0.052,
+      "rim": 0.254,
+      "bg": 1.698
+    }
+  },
+  {
+    "case": 1,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.05059649795293808,
+    "angle_degrees": 43.96469074628608,
+    "residuals": {
+      "prod": 0.116,
+      "rim": 0.043,
+      "bg": 4.196
+    }
+  },
+  {
+    "case": 2,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.02965603396296501,
+    "angle_degrees": 43.964690746286095,
+    "residuals": {
+      "prod": 0.136,
+      "rim": 0.213,
+      "bg": 3.528
+    }
+  },
+  {
+    "case": 3,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.0174652598798275,
+    "angle_degrees": 0.0,
+    "residuals": {
+      "prod": 0.064,
+      "rim": 0.213,
+      "bg": 1.048
+    }
+  },
+  {
+    "case": 4,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.09664200246334076,
+    "angle_degrees": 0.0,
+    "residuals": {
+      "prod": 0.063,
+      "rim": 0.115,
+      "bg": 4.174
+    }
+  },
+  {
+    "case": 5,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.0120489951223135,
+    "angle_degrees": 28.000000000000007,
+    "residuals": {
+      "prod": 0.029,
+      "rim": 0.101,
+      "bg": 2.869
+    }
+  },
+  {
+    "case": 6,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.03511720150709152,
+    "angle_degrees": 8.537736462515939e-07,
+    "residuals": {
+      "prod": 0.149,
+      "rim": 0.272,
+      "bg": 1.175
+    }
+  },
+  {
+    "case": 7,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.044807069003582,
+    "angle_degrees": 24.000000000000004,
+    "residuals": {
+      "prod": 0.081,
+      "rim": 0.273,
+      "bg": 3.843
+    }
+  },
+  {
+    "case": 8,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.03722512722015381,
+    "angle_degrees": 8.537736462515939e-07,
+    "residuals": {
+      "prod": 0.05,
+      "rim": 0.154,
+      "bg": 2.366
+    }
+  },
+  {
+    "case": 9,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.11681366711854935,
+    "angle_degrees": 52.0,
+    "residuals": {
+      "prod": 0.152,
+      "rim": 0.233,
+      "bg": 2.461
+    }
+  },
+  {
+    "case": 10,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.23027075827121735,
+    "angle_degrees": 25.999999999999996,
+    "residuals": {
+      "prod": 0.093,
+      "rim": 0.094,
+      "bg": 3.656
+    }
+  },
+  {
+    "case": 11,
+    "backend": "measured",
+    "arm": "A",
+    "rmse": 0.06636226177215576,
+    "angle_degrees": 37.9011688618542,
+    "residuals": {
+      "prod": 0.204,
+      "rim": 0.62,
+      "bg": 2.383
+    }
+  },
+  {
+    "case": 0,
+    "backend": "claude",
+    "error": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+    "case": 1,
+    "backend": "claude",
+    "error": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+    "case": 0,
+    "backend": "codex",
+    "arm": "B",
+    "latency": 12.95,
+    "rmse": 0.05956805869936943,
+    "angle_degrees": 43.964690746286095,
+    "residuals": {
+      "prod": 0.404,
+      "rim": 0.73,
+      "bg": 2.622
+    }
+  },
+  {
+    "case": 0,
+    "backend": "codex",
+    "arm": "D",
+    "rmse": 0.3298845887184143,
+    "angle_degrees": 43.964690746286095,
+    "residuals": {}
+  },
+  {
+    "case": 0,
+    "backend": "codex",
+    "arm": "C",
+    "latency": 11.55,
+    "rmse": 0.05956805869936943,
+    "angle_degrees": 43.964690746286095,
+    "residuals": {
+      "prod": 0.404,
+      "rim": 0.73,
+      "bg": 2.622
+    }
+  },
+  {
+    "case": 1,
+    "backend": "codex",
+    "arm": "B",
+    "latency": 12.28,
+    "rmse": 0.06336873769760132,
+    "angle_degrees": 114.64710718063796,
+    "residuals": {
+      "prod": 0.325,
+      "rim": 0.271,
+      "bg": 3.594
+    }
+  },
+  {
+    "case": 1,
+    "backend": "codex",
+    "arm": "D",
+    "rmse": 0.462333083152771,
+    "angle_degrees": 82.64577886480744,
+    "residuals": {}
+  },
+  {
+    "case": 1,
+    "backend": "codex",
+    "error": "Could not find the product in the reference. Try a reference with a plain background"
+  },
+  {
+    "case": 2,
+    "backend": "codex",
+    "arm": "B",
+    "latency": 12.11,
+    "rmse": 0.22801487147808075,
+    "angle_degrees": 82.64577886480744,
+    "residuals": {
+      "prod": 0.962,
+      "rim": 0.651,
+      "bg": 0.956
+    }
+  },
+  {
+    "case": 2,
+    "backend": "codex",
+    "arm": "D",
+    "rmse": 0.14220814406871796,
+    "angle_degrees": 82.64577886480744,
+    "residuals": {}
+  },
+  {
+    "case": 2,
+    "backend": "codex",
+    "arm": "C",
+    "latency": 8.56,
+    "rmse": 0.025129809975624084,
+    "angle_degrees": 26.000000000000025,
+    "residuals": {
+      "prod": 0.224,
+      "rim": 0.395,
+      "bg": 3.096
+    }
+  },
+  {
+    "case": 3,
+    "backend": "codex",
+    "arm": "B",
+    "latency": 8.83,
+    "rmse": 0.015142417512834072,
+    "angle_degrees": 0.0,
+    "residuals": {
+      "prod": 0.083,
+      "rim": 0.243,
+      "bg": 1.627
+    }
+  },
+  {
+    "case": 3,
+    "backend": "codex",
+    "arm": "D",
+    "rmse": 0.21059079468250275,
+    "angle_degrees": 0.0,
+    "residuals": {}
+  },
+  {
+    "case": 3,
+    "backend": "codex",
+    "arm": "C",
+    "latency": 11.29,
+    "rmse": 0.020539037883281708,
+    "angle_degrees": 0.0,
+    "residuals": {
+      "prod": 0.111,
+      "rim": 0.242,
+      "bg": 1.743
+    }
+  },
+  {
+    "case": 4,
+    "backend": "codex",
+    "arm": "B",
+    "latency": 10.52,
+    "rmse": 0.08171243965625763,
+    "angle_degrees": 52.0,
+    "residuals": {
+      "prod": 0.428,
+      "rim": 0.142,
+      "bg": 2.123
+    }
+  },
+  {
+    "case": 4,
+    "backend": "codex",
+    "arm": "D",
+    "rmse": 0.19659458100795746,
+    "angle_degrees": 52.0,
+    "residuals": {}
+  },
+  {
+    "case": 4,
+    "backend": "codex",
+    "arm": "C",
+    "latency": 9.64,
+    "rmse": 0.08171243965625763,
+    "angle_degrees": 52.0,
+    "residuals": {
+      "prod": 0.428,
+      "rim": 0.142,
+      "bg": 2.123
+    }
+  },
+  {
+    "case": 5,
+    "backend": "codex",
+    "arm": "B",
+    "latency": 10.83,
+    "rmse": 0.1378099024295807,
+    "angle_degrees": 93.44249014743092,
+    "residuals": {
+      "prod": 0.857,
+      "rim": 0.591,
+      "bg": 0.95
+    }
+  },
+  {
+    "case": 5,
+    "backend": "codex",
+    "arm": "D",
+    "rmse": 0.12282165139913559,
+    "angle_degrees": 67.72582796193532,
+    "residuals": {}
+  },
+  {
+    "case": 5,
+    "backend": "codex",
+    "arm": "C",
+    "latency": 13.37,
+    "rmse": 0.09469672292470932,
+    "angle_degrees": 67.72582796193534,
+    "residuals": {
+      "prod": 0.716,
+      "rim": 0.613,
+      "bg": 1.063
+    }
+  },
+  {
+    "case": 6,
+    "backend": "codex",
+    "arm": "B",
+    "latency": 11.03,
+    "rmse": 0.021796440705657005,
+    "angle_degrees": 8.537736462515939e-07,
+    "residuals": {
+      "prod": 0.099,
+      "rim": 0.392,
+      "bg": 1.842
+    }
+  },
+  {
+    "case": 6,
+    "backend": "codex",
+    "arm": "D",
+    "rmse": 0.1786264032125473,
+    "angle_degrees": 28.000000000000007,
+    "residuals": {}
+  },
+  {
+    "case": 6,
+    "backend": "codex",
+    "error": "Could not find the product in the reference. Try a reference with a plain background"
+  }
+]

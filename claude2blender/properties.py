@@ -17,6 +17,9 @@ from bpy.props import (
     StringProperty,
 )
 
+from .presets import PRESET_ITEMS
+from .scene_tools import STYLE_ITEMS
+
 MODES = [
     ("MATERIAL", "Material", "Material Match: recreate a material, texture or finish from a reference", "MATERIAL", 0),
     ("ENVIRONMENT", "Environment", "Environment Match: match lighting, background and world", "WORLD", 1),
@@ -112,12 +115,19 @@ def permissions_for(state, mode=None):
 
 
 class C2B_State(bpy.types.PropertyGroup):
+    backend: EnumProperty(name="Backend", items=[("claude", "Claude", ""), ("codex", "Codex", "")], default="claude")
+    gen_error_kind: StringProperty()
+
     prompt: StringProperty(
         name="Prompt",
         description="Describe what you want Claude to do",
         default="",
     )
     mode: EnumProperty(name="Mode", items=MODES, default="MATERIAL")
+    preset: EnumProperty(name="Studio preset", items=PRESET_ITEMS, default="plastic_white",
+                         description="Tuned product material from the studio library (no Claude call needed)")
+    studio_style: EnumProperty(name="Studio style", items=STYLE_ITEMS, default="dark",
+                               description="Tuned lighting, world and backdrop from the studio library (no Claude call needed)")
     preserve_geometry: BoolProperty(
         name="Preserve Geometry",
         description=(

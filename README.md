@@ -1,12 +1,12 @@
 # Claude2Blender
 
-A sidebar in Blender's 3D viewport for working with Claude. Write a prompt,
+A sidebar in Blender's 3D viewport for working with Claude or Codex. Write a prompt,
 pick what you want changed, select objects or faces, attach reference photos,
 and press **Generate with Claude**. Claude's change shows up for review, and
 nothing runs until you press **Apply**. Every applied change goes into a
 History with Undo and Redo.
 
-What it can do (v0.5):
+Existing review-and-apply workflows:
 
 * **Material matching.** Select an object, or faces in Edit Mode, add a photo
   of a material, and Claude builds a photorealistic shader for exactly that
@@ -24,32 +24,69 @@ What it can do (v0.5):
   **Original** and **Proposed**, Preserve Geometry stops accidental mesh edits,
   and every change can be undone.
 
-It uses **your own Claude Code sign-in**, so usage counts against your Claude
-plan. No API key is needed.
+## Studio preview (v0.7.0)
 
----
+This branch adds a backend dropdown (Claude by default), owned conversation history,
+explicit quota switching, and a paired localhost studio board. Notes, storyboard
+and audit metadata live beside the project in `<name>.c2b/`; exact scene undo is
+available within the current Blender session.
+
+The studio board supports part/surface notes, notes mapped from rendered pixels,
+numbered shots, captured-light Finish previews, measured QA and reviewed delivery
+Packs. Generated changes always wait for Blender's **Preview / Apply** controls.
+MCP exposes only reads and proposal staging. The approved storyboard renders in a
+background Blender copy, with PNG frames, EXR passes and an MP4 preview.
+
+**Validation preview, not a production-certified release.** See
+[implementation and test report](docs/IMPLEMENTATION_REPORT.md) and
+[remaining blockers](HANDOFF_BLOCKERS.md). The complete two-provider vision
+experiment, live end-to-end provider test, macOS run and final companion visual
+review remain open. Measured lighting remains the default; no image generator is used.
 
 ## Requirements
 
-* **Blender 4.2 or newer** (recommended). Blender 3.6 to 4.1 work through the
-  legacy add-on installer. Tested on Blender 4.2 LTS, 4.5 and 5.3.
-* **Claude Code**, Anthropic's official command-line tool, signed in with a
-  Claude **Pro, Max, Team or Enterprise** plan (or an Anthropic API key, if you
-  prefer pay-as-you-go).
-* macOS or Linux. Windows should work but hasn't been tested yet.
+- Blender **5.x or newer**. Tested here on Windows / Blender **5.3.0** only.
+- Your own signed-in, unmodified Claude Code or Codex CLI. API-key environment
+  overrides are removed from both child processes; no provider tokens are read or stored.
+- Windows or macOS implementation paths; macOS is not yet verified.
+- Codex privacy limitation: read-only write protection is not a verified
+  reference-folder-only read boundary. See B-001 before using sensitive references.
 
 ## Install
 
-1. **Download** `claude2blender-0.5.0.zip` from the [`dist/`](dist/claude2blender-0.5.0.zip)
-   folder of this repository (open the file, then press the download button). Don't unzip it.
-2. In Blender, open **Edit → Preferences → Add-ons**.
-3. Blender 4.2 or newer: click the **⌄** menu at the top right and choose
-   **Install from Disk…**. Blender 3.6 to 4.1: click **Install…**.
-4. Pick the zip you downloaded, and make sure **Claude2Blender** is ticked.
-5. In the 3D viewport press **N** and open the **Claude** tab.
+1. Download `claude2blender-0.7.0.zip` from `dist/` in this fork.
+2. In Blender open **Edit → Preferences → Add-ons → Install from Disk…**.
+3. Choose the ZIP and enable Claude2Blender; press **N → Claude** in the viewport.
+4. Select a backend and, if needed, set its CLI path in add-on preferences.
+5. Use **Studio board → Open companion**, then **Copy pairing key** and paste it
+   into the local page. Each Blender session gets a separate loopback port/key.
 
-To update, install a newer zip the same way and restart Blender. To remove it,
-uninstall **Claude2Blender** in Preferences. Neither step changes any `.blend` file.
+To update, install a newer ZIP and restart Blender. The package contains no texture
+packs or HDRIs. Existing asset folders remain external.
+
+## Studio workflow
+
+1. Select a product, choose Material / Environment / Composition, and chat.
+2. Inspect the returned code and use Preview / Apply; undo through History.
+3. Add a part note or click a surface with Pin. In the companion, **Ask agent**
+   sends an individual note; its resulting proposal remains reviewable in Blender.
+4. Add shots from a scene camera, edit numbered ranges/motion in the companion,
+   then approve the saved storyboard in Blender. Editing it invalidates approval.
+5. Render the approved board. Select the product meshes first for QA masking.
+6. Review each captured shot. Original returns to the rendered frame; Finish
+   previews a linear light-group rebalance with an **approximate sRGB** display.
+   Stage Finish, inspect it in Blender, Apply and rerender for final color.
+7. **Ask agent to review this render** sends the captured frame, references and
+   measured rubric; limited to three requests per capture. Corrections never auto-apply.
+8. Measure QA and record visual review of dimensions, edges, materials, noise,
+   scene fit and motion. Only then can Create Pack export frames, JPEG stills,
+   contact sheet, MP4 when available, and a manifest with frame hashes.
+
+Render notes retain before/after capture links. A note is marked done by the user;
+applying code alone is not proof the visual issue was solved. Keep the `.c2b` folder
+with its project. Save As carries JSON metadata; old captured-render paths are
+rejected in the new project, so rerender before Finish or Pack there. Paths containing
+`#` must be renamed before rendering because Blender treats it as a frame placeholder.
 
 ## One-time Claude Code setup
 
@@ -158,6 +195,51 @@ calls `assign_material(mat)`, which the add-on provides:
   object-level override so the others don't change.
 * Face targets on a mesh shared by linked duplicates can't be isolated, because
   the faces are the same data. The panel warns you when that happens.
+
+### Studio presets
+
+In Material mode, pick a preset from the dropdown under the mode (white dry-blast ABS, soft-touch
+black, vulcanized black, TPE, dot-grid rubber, brushed steel, scuffed copper, clear resin, PCB, glass,
+aluminium and more) and press **Use Preset**. No Claude call is made; the change is staged so you can
+Preview, Apply and Undo it like any other. Claude can also start from a preset
+(`preset_material("soft_touch_black")`) when your prompt matches one.
+
+Presets use texture packs when they are installed: set **Texture Library** in the add-on preferences
+to the folder holding them (for example `worn-old-plastic-bl`, `Copper-scuffed_bl` or Poliigon folders,
+up to two levels deep). The preferences list which packs were found. Without a pack, the preset uses
+procedural grain.
+
+### Studio styles
+
+In Environment mode, pick **Dark studio**, **High-key white** or **Colour gradient** from the dropdown
+and press **Use Style**. These are Blender Director's tuned looks: lights placed around your product
+relative to the scene camera and sized from the product (same look at any scale), a studio world, a
+floor or sweep, and for Colour gradient a glowing orange-to-red wall. No Claude call is made. Like any
+change it is staged for Preview / Apply / Undo and checked against Allowed Changes. Switching styles
+reuses the same lights and hides the ones the new look doesn't use; your own lights are never changed.
+Claude can start from them too (`c2b.studio_style("dark")`). Sample renders: `tests/real_results/style_*.png`.
+
+### Measured lighting match
+
+In Environment mode, add a reference photo and press **Measure Lighting from Reference**. Instead of
+estimating, it measures:
+
+1. A background Blender renders a temporary copy of your scene through your camera under 25 soft test
+   lights (3 rings of 8 plus overhead) and a neutral world, each in its own light group. Your file is not
+   changed and Blender stays usable; the panel shows progress and a cancel button.
+2. A least-squares fit finds how strong and what colour each test light must be to reproduce the
+   photo's shading pattern on your product, its rims and the background.
+3. The lights that matter are staged as real area lights (`C2B Match L07`, ...) plus a studio world,
+   for Preview / Apply / Undo. Exposure is folded into the light energies, so your colour management
+   is untouched. The summary names the strongest light directions and the fit residuals (lower is
+   closer; no match percentage is claimed). Claude refines these lights by name in follow-ups.
+
+Limits: it matches light direction, balance and colour, not the camera angle, props or backdrop
+shape. Lights come from a fixed 25-light dome, so a key between two rings is split between them and
+tends to land in the lower one. A reference with a very busy or uneven background may not separate
+cleanly from the product. Your own lights stay on (they aren't part of the fit), so switch them off
+for a true comparison. Test and side-by-side: `tests/test_refmatch.py`,
+`tests/real_results/refmatch_reference.png` vs `refmatch_matched.png`.
 
 ### Environment matching
 
@@ -349,61 +431,27 @@ Turn it off only when you want Claude to model.
 
 ---
 
-## How Generate with Claude works
+## How generation works
 
-Blender starts your `claude` CLI on a background thread:
+`backends.py` owns provider commands, event parsing, sign-in probes, cancellation
+and error classification. Both adapters return one recursively strict schema.
+The add-on records the conversation and sends a bounded recent context each turn;
+it never depends on a provider's session resume. Latency and available usage data
+are recorded per assistant turn. Quota errors offer an explicit backend switch.
 
-```
-claude -p "<prompt + request JSON>" --output-format stream-json --verbose
-       --json-schema '{summary, code, message}'  --append-system-prompt "<Blender rules>"
-       --strict-mcp-config --disallowedTools "mcp__*"
-       --tools Read --allowedTools Read --add-dir <reference image folders>
-       [--resume <session id>]   # follow-ups
-```
+Claude reads the supplied image paths. Codex receives attached images and stdin,
+with read-only execution, user configuration disabled and a strict schema file.
+Only the addon-owned MCP shim is configured when the companion is active; the shim
+cannot apply code. Code is syntax-checked and staged through the existing bridge.
+Generated responses are discarded when the request, project or captured scene
+signature changes while waiting. The signature covers transforms, selection,
+material inputs, cameras and light energy, not every possible Blender datablock edit.
 
-* **No auto-run.** Claude has only the Read tool, limited to your reference
-  image folders. MCP servers are switched off for these runs, so Claude can't
-  reach Blender, a shell or the web. Its answer comes back as structured JSON,
-  and the code is syntax-checked and staged in Review & Apply. Preserve
-  Geometry, History and Undo/Redo apply exactly as before.
-* **Images.** Claude opens PNG/JPG/WebP/GIF files itself with the Read tool.
-  EXR, HDR, TIFF, TGA and BMP are converted to PNG copies in Blender's config
-  folder first (`claude2blender/claude_workspace/reference_cache`). Your
-  originals and your .blend are never changed.
-* **Workspace.** Runs use their own working folder
-  (`claude2blender/claude_workspace` in Blender's config folder), so no project
-  files or `CLAUDE.md` get mixed in. Claude Code keeps the conversations there
-  so follow-ups can resume them.
-* **Finding the CLI.** Blender started from the Dock gets a minimal PATH, so the
-  add-on asks your login shell for its PATH and also checks the usual install
-  folders. You can set the path yourself in the add-on preferences. The model,
-  time limit (default 5 minutes) and API-key handling are set there too.
-
-### Authentication and its limits
-
-Checked against Anthropic's docs on 2026-11-12
-(https://code.claude.com/docs/en/iam,
-https://code.claude.com/docs/en/legal-and-compliance,
-https://code.claude.com/docs/en/agent-sdk/overview):
-
-* **Your own subscription through the official CLI is supported.** `claude -p`
-  uses the account you signed in with via `/login` (Pro, Max, Team, Enterprise).
-  The add-on never reads, copies, stores or passes tokens; it only starts the
-  unmodified `claude` program you installed.
-* **`ANTHROPIC_API_KEY` wins in `-p` mode.** The docs say that in
-  non-interactive mode the key "is always used when present", which would bill
-  your API account. By default the add-on hides that variable from Claude Code
-  so your subscription is used. Turn off *Use my Claude subscription sign-in* in
-  the preferences if you prefer the API key.
-* **Agent SDK: not used.** Anthropic says products built on the Agent SDK must
-  use API-key auth, and third-party developers may not offer claude.ai sign-in
-  in their products. Using the SDK would therefore mean a separately billed key,
-  so v0.3 calls the CLI instead.
-* **Everyone uses their own sign-in.** Each person who installs Claude2Blender
-  signs in to their own copy of Claude Code (or uses their own API key).
-  Nothing is shared or bundled.
-* **Usage limits.** Each Generate counts against your plan's normal Claude Code
-  limits. Anthropic's limits assume ordinary individual use.
+The process uses a user-data workspace, strips provider API-key overrides and
+honors Blender Online Access for provider calls. Reference conversions use copies.
+No Agent SDK or provider credential storage is used. CLI sign-in remains the user's
+own normal sign-in process. See [step 1 evidence](docs/STEP1_VERIFICATION.md) for
+verified Codex flags and the unresolved filesystem-isolation probe.
 
 ## Claude Desktop fallback (optional)
 
@@ -449,7 +497,7 @@ Composition the request includes `permissions` and `scene.layout`.
 Claude4Blender/
 ├── claude2blender/           the add-on (install this)
 │   ├── __init__.py           bl_info, registration
-│   ├── blender_manifest.toml extension manifest for Blender 4.2+
+│   ├── blender_manifest.toml extension manifest for Blender 5.x+
 │   ├── properties.py         modes, reference roles, panel state
 │   ├── claude_cli.py         Generate with Claude: background `claude -p`, status, follow-ups, prefs
 │   ├── bridge.py             request building, selection/face capture, API for Claude, MCP status
@@ -460,7 +508,7 @@ Claude4Blender/
 │   ├── operators.py          send, references, review/apply, history ops, Preserve Geometry guard
 │   ├── references.py         thumbnail previews
 │   └── ui.py                 sidebar panels
-├── dist/claude2blender-0.5.0.zip   ready-to-install zip
+├── dist/claude2blender-0.7.0.zip   ready-to-install zip
 ├── tests/                    headless tests (no user files opened)
 └── build_zip.sh
 ```
@@ -477,6 +525,11 @@ python tests/test_materials.py           # faces/objects, preview, saving, image
                                          # a real run on a rendered copper photo
 python tests/test_scene.py               # v0.5 sample scenes: lighting, camera angle, exploded view,
                                          # refinements, undo/redo, Allowed Changes, Original/Proposed
+python tests/test_presets.py             # studio material presets, texture packs, Use Preset
+python tests/test_styles.py              # studio styles; C2B_STYLE_RENDERS=<dir> renders each style
+python tests/test_refmatch.py            # measured lighting match on a rendered reference (C2B_GPU=1)
+# The stand-in CLI (tests/fake_cli.py) is a shebang script on macOS/Linux and an npm-style
+# claude.cmd shim on Windows, so the same tests run on both.
 C2B_REAL_CLAUDE=1 python tests/test_scene_real.py   # real Claude on rendered environment and
                                                     # composition references, with follow-ups
                                                     # (renders from the last run: tests/real_results/)
