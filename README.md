@@ -151,6 +151,26 @@ install the command-line version as above.
    shows the Python, then **Apply** or **Discard**.
 9. **Undo / Redo / History.** Every Apply goes into **History** (last 10). See below.
 
+### Choosing the model
+
+Under **Backend** in the panel (and on the companion page, and in Preferences) a
+**Model** dropdown picks which model answers the next request:
+
+- **CLI default** passes no model, so the CLI uses its own default.
+- **Fable 5.2, Opus 5.5, Sonnet 5.5, Haiku 5.5** for Claude. All four were accepted
+  by Claude Code 2.1.325 on the test machine; whether you can use each one depends
+  on your plan.
+- **Custom…** sends any other name you type (an alias such as `opus`, or a full id).
+
+The choice is remembered per backend, so switching to Codex and back (including
+the usage-limit switch) returns to each backend's own model. Each answer in the
+conversation shows the model that gave it, and the result card shows the time
+and, when the CLI reports them, the token counts. If the CLI rejects a name the
+card says so and nothing is staged. Use a faster model for small tweaks and the
+strongest one for hard looks by changing the dropdown between requests. The list
+lives in `claude2blender/models.json`; edit it to add a model without a code
+change. Codex has no preset list: use CLI default or Custom.
+
 ### Visual material matching
 
 1. Select the target. In **Object Mode** the selected objects get the material.

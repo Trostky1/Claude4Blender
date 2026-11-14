@@ -1,0 +1,10 @@
+{
+  "_comment": "Model choices shown in the Claude2Blender panel. Edit this file to add or remove models; 'id' is passed to the CLI's --model flag. 'CLI default' and 'Custom' are always added by the add-on.",
+  "claude": [
+    {"id": "claude-fable-5-2", "label": "Fable 5.2", "note": "Most capable: hard looks, critique and design decisions"},
+    {"id": "claude-opus-5-5", "label": "Opus 5.5", "note": "Very capable: complex materials and scenes"},
+    {"id": "claude-sonnet-5-5", "label": "Sonnet 5.5", "note": "Fast and capable: everyday changes"},
+    {"id": "claude-haiku-5-5", "label": "Haiku 5.5", "note": "Fastest and cheapest: small tweaks"}
+  ],
+  "codex": []
+}

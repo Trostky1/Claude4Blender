@@ -70,6 +70,12 @@ if mode == "noauth":
     emit({"type": "result", "subtype": "success", "is_error": True, "result": "Not logged in · Please run /login", "session_id": sid}); sys.exit(1)
 if mode == "slow":
     time.sleep(30)
+picked = args[args.index("--model") + 1] if "--model" in args else ""
+if picked == "not-a-real-model-xyz":
+    # Exactly what Claude Code 2.1.325 answers for an unknown model name.
+    emit({"type": "result", "subtype": "success", "is_error": True, "session_id": sid,
+          "result": "There's an issue with the selected model (not-a-real-model-xyz). It may not exist or you may "
+                    "not have access to it. Run --model to pick a different model."}); sys.exit(1)
 prompt = args[args.index("-p") + 1]
 if "--tools" in args and args[args.index("--tools") + 1] == "Read":
     for line in prompt.splitlines():
@@ -238,6 +244,69 @@ check(state.gen_status in ("CONNECTING", "PROCESSING"), "status shows progress w
 bpy.ops.claude2blender.cancel_generate()
 claude_cli.pump_until_done(10)
 check(state.gen_status == "FAILED" and state.gen_detail == "Cancelled" and not claude_cli.busy(), "Cancel stops Claude")
+
+# 6b. Choosing the model (Preferences stand-in: headless tests have no enabled add-on entry)
+import types  # noqa: E402
+from claude2blender import models, project_state  # noqa: E402
+
+check([i[0] for i in models.items("claude")] == ["default", "claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5",
+                                                 "claude-haiku-5-5", "custom"],
+      "Claude choices: CLI default, Fable, Opus, Sonnet, Haiku, Custom")
+check([i[0] for i in models.items("codex")] == ["default", "custom"], "Codex choices: CLI default and Custom")
+prefs = types.SimpleNamespace(claude_model_choice="default", codex_model_choice="default", claude_model="",
+                              codex_model="", model="", model_migrated=True, claude_path="", codex_path="",
+                              timeout_minutes=5, ignore_api_key=True)
+real_prefs, claude_cli.prefs = claude_cli.prefs, lambda: prefs
+set_mode("ok")
+bpy.ops.claude2blender.new_conversation()
+state.prompt = "Make it blue"
+
+
+def run_with(choice, custom=""):
+    prefs.claude_model_choice, prefs.claude_model = choice, custom
+    state.proposal_pending = False
+    result = bpy.ops.claude2blender.generate()
+    claude_cli.pump_until_done(30)
+    return result, calls()[-1]["args"]
+
+
+_r, a = run_with("default")
+check("--model" not in a and state.gen_model == "Claude · CLI default", "CLI default: no --model flag is passed")
+_r, a = run_with("claude-opus-5-5")
+check(a[a.index("--model") + 1] == "claude-opus-5-5" and state.gen_model == "Claude · Opus 5.5",
+      "a preset passes its id to --model and shows its name")
+turn = project_state.current().data["conversation"][-1]
+check(turn["role"] == "assistant" and turn["model"] == "claude-opus-5-5" and turn["model_label"] == "Opus 5.5",
+      "each answer records the model that gave it")
+_r, a = run_with("claude-fable-5-2")
+check(a[a.index("--model") + 1] == "claude-fable-5-2", "switching model takes effect on the next request")
+_r, a = run_with("custom", "  sonnet  ")
+check(a[a.index("--model") + 1] == "sonnet" and state.gen_model == "Claude · sonnet", "Custom passes the typed name, trimmed")
+n_calls = len(calls())
+prefs.claude_model_choice, prefs.claude_model = "custom", " "
+state.proposal_pending = False
+try:
+    bpy.ops.claude2blender.generate()
+except RuntimeError:
+    pass
+check(len(calls()) == n_calls and state.gen_status == "FAILED" and "model name" in state.gen_detail,
+      "Custom with no name is refused before anything is sent")
+_r, a = run_with("custom", "not-a-real-model-xyz")
+check(state.gen_status == "FAILED" and state.gen_error_kind == "model"
+      and 'did not accept the model "not-a-real-model-xyz"' in state.gen_detail and not state.proposal_pending,
+      "a model name the CLI rejects is explained, with what to do")
+draw_panels()
+old = types.SimpleNamespace(claude_model_choice="default", codex_model_choice="default", claude_model="opus",
+                            codex_model="", model="", model_migrated=False)
+models.migrate(old)
+check(old.claude_model_choice == "custom" and models.resolve(old, "claude") == "opus" and old.model_migrated,
+      "a model name typed before 0.8 becomes the Custom choice")
+check(models.resolve(old, "codex") == "" and models.label(old, "codex") == "CLI default",
+      "each backend keeps its own model choice")
+check(claude_cli.usage_line({"input_tokens": 2, "cache_read_input_tokens": 2885, "output_tokens": 4}) == "2.9k in · 4 out tokens"
+      and claude_cli.usage_line({}) == "", "token counts are summarised when the CLI reports them")
+claude_cli.prefs = real_prefs
+state.proposal_pending = False
 
 # 7. Missing CLI
 claude_cli._login_path = "/nonexistent"

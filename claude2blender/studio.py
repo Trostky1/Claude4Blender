@@ -100,8 +100,38 @@ def dispatch(method, params):
         raise ValueError("Expected object parameters")
     state, store = get_state(), project_state.current()
     if method == "get_state":
+        from . import models
+        p = claude_cli.prefs()
+        models.migrate(p)
         return dict(store=copy.deepcopy(store.data), scene=bridge.scene_overview(),
-                    status=state.gen_detail, backend=state.backend, filepath=bpy.data.filepath)
+                    status=state.gen_detail, backend=state.backend, filepath=bpy.data.filepath,
+                    busy=claude_cli.busy(),
+                    model=dict(choice=models.choice(p, state.backend), label=models.label(p, state.backend),
+                               custom=getattr(p, state.backend+"_model", "") if p else "",
+                               options=[[i[0], i[1]] for i in models.items(state.backend)],
+                               editable=p is not None))
+    if method == "set_model":
+        # A setting, not a scene change: which backend and model the next message uses.
+        from . import models
+        p = claude_cli.prefs()
+        backend, choice, custom = params.get("backend", state.backend), params.get("choice"), params.get("custom", "")
+        if claude_cli.busy():
+            raise ValueError("Wait for the current message")
+        if backend not in ("claude", "codex"):
+            raise ValueError("Unknown backend")
+        if choice is None:   # switching backend only: keep that backend's saved model
+            choice = models.choice(p, backend)
+        if choice not in models.choices(backend):
+            raise ValueError("Unknown model")
+        if not isinstance(custom, str) or len(custom) > 200 or any(ord(c) < 32 for c in custom):
+            raise ValueError("Invalid model name")
+        if p is None:
+            raise ValueError("Add-on preferences are unavailable")
+        state.backend = backend
+        setattr(p, backend+"_model_choice", choice)
+        if choice == models.CUSTOM and "custom" in params and params.get("choice") is not None:
+            setattr(p, backend+"_model", custom.strip())
+        return dict(backend=backend, choice=choice, label=models.label(p, backend))
     if method == "get_context":
         return bridge._api.live_context()
     if method == "list_notes":

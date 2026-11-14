@@ -13,7 +13,7 @@ import time
 
 import bpy
 
-from . import bridge, history, materials, presets
+from . import bridge, history, materials, models, presets
 from .properties import get_state
 
 READABLE_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
@@ -500,8 +500,10 @@ def start_generate(context, review_images=None, note_id=None):
     if review_images:
         images = list(review_images)+images
         request["render_review"] = "First image is the captured current render; subsequent images are user references. Critique visible evidence, propose one bounded correction, and do not claim the scene changed."
-    model = getattr(p, backend.id+"_model", "") if p else ""
-    model = model or (p.model if p else "")
+    models.migrate(p)
+    if models.problem(p, backend.id):
+        raise RuntimeError(models.problem(p, backend.id))
+    model, model_label = models.resolve(p, backend.id), models.label(p, backend.id)
     # A user retry after quota sends the pending prompt once, retaining prior turns.
     if not store.data["conversation"] or store.data["conversation"][-1].get("text") != state.prompt or store.data["conversation"][-1].get("role") != "user":
         store.turn("user", state.prompt, backend.id)
@@ -522,6 +524,8 @@ def start_generate(context, review_images=None, note_id=None):
     _job.mcp_config = studio.mcp_config()
     _job.prepare, _job.mode, _job.store = prepare, request["mode"], store
     _job.note_id = note_id
+    _job.model, _job.model_label = model, model_label
+    state.gen_model, state.gen_usage = backend.label + " · " + model_label, ""
     _job.request_id, _job.filepath = request["request_id"], bpy.data.filepath
     from .capture import scene_signature
     _job.scene_signature = scene_signature()
@@ -594,7 +598,11 @@ def _finish_generate(state):
     if job.rc != 0 or error or not hasattr(job, "result"):
         text = error or getattr(job, "stderr", "").strip() or "Backend exited without a result"
         state.gen_error_kind = job.backend.error_kind(text)
-        if state.gen_error_kind == "auth":
+        if models.rejected(text, getattr(job, "model", "")):
+            state.gen_error_kind = "model"
+            text = (f'{job.backend.label} did not accept the model "{job.model}". Pick another model next to '
+                    "Backend and send again. Details: " + text)
+        elif state.gen_error_kind == "auth":
             text = job.backend.label+" isn't signed in. "+job.backend.login_hint+" "+text
         state.gen_status, state.gen_detail = "FAILED", text[:500]
         return
@@ -612,8 +620,11 @@ def _finish_generate(state):
     state.gen_turns += 1
     _set_material_summary(state, out["material"])
     _set_scene_summary(state, out["scene"])
+    usage = getattr(job, "usage", {}) or {}
+    state.gen_usage = usage_line(usage)
     job.store.turn("assistant", out["message"], job.backend.id, result=out,
-                   elapsed=state.gen_elapsed, usage=getattr(job, "usage", {}))
+                   elapsed=state.gen_elapsed, usage=usage,
+                   model=getattr(job, "model", ""), model_label=getattr(job, "model_label", ""))
     if code and history.preview_entry() is not None:
         from .operators import _set_material_view
         history.end_preview(keep=False)
@@ -632,6 +643,19 @@ def _finish_generate(state):
     else:
         state.gen_outcome, state.gen_detail = "QUESTION", "Reply received"
     state.gen_status = "COMPLETED"
+
+
+def usage_line(usage):
+    """'1.2k in · 340 out' from whatever token counts the CLI reported ('' when it reported none)."""
+    def total(*keys):
+        return sum(int(usage.get(k) or 0) for k in keys if isinstance(usage.get(k), (int, float)))
+
+    def short(n):
+        return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+    tin = total("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "cached_input_tokens")
+    tout = total("output_tokens")
+    return f"{short(tin)} in · {short(tout)} out tokens" if tin or tout else ""
 
 
 def _set_material_summary(state, mat):
@@ -745,6 +769,20 @@ def wrap(text, width):
 
 # ---------------------------------------------------------------- preferences UI
 
+def draw_model_choice(layout, p, backend, label="Model"):
+    """The model dropdown (and the Custom name field) for one backend; used by the panel and Preferences."""
+    models.migrate(p)
+    col = layout.column(align=True)
+    col.prop(p, backend + "_model_choice", text=label)
+    if models.choice(p, backend) == models.CUSTOM:
+        col.prop(p, backend + "_model", text="")
+        if models.problem(p, backend):
+            row = col.row()
+            row.alert = True
+            row.label(text="Type a model name", icon="ERROR")
+    return col
+
+
 class C2B_Preferences(bpy.types.AddonPreferences):
     bl_idname = __package__
 
@@ -754,8 +792,17 @@ class C2B_Preferences(bpy.types.AddonPreferences):
         subtype="FILE_PATH",
     )
     codex_path: bpy.props.StringProperty(name="Codex CLI", subtype="FILE_PATH")
-    claude_model: bpy.props.StringProperty(name="Claude model")
-    codex_model: bpy.props.StringProperty(name="Codex model")
+    claude_model_choice: bpy.props.EnumProperty(
+        name="Claude model", items=models.items("claude"), default=models.DEFAULT,
+        description="Which Claude model answers. Also in the Claude panel, next to Backend")
+    codex_model_choice: bpy.props.EnumProperty(
+        name="Codex model", items=models.items("codex"), default=models.DEFAULT,
+        description="Which Codex model answers. Also in the Claude panel, next to Backend")
+    claude_model: bpy.props.StringProperty(
+        name="Custom Claude model", description="Model alias or full name passed to --model when Custom is chosen")
+    codex_model: bpy.props.StringProperty(
+        name="Custom Codex model", description="Model name passed to --model when Custom is chosen")
+    model_migrated: bpy.props.BoolProperty(default=False, options={"HIDDEN"})
     model: bpy.props.StringProperty(
         name="Model",
         description="Optional model alias or name passed to --model (empty = Claude Code's default)",
@@ -788,12 +835,10 @@ class C2B_Preferences(bpy.types.AddonPreferences):
                       icon="ERROR")
         layout.prop(state, "backend")
         layout.prop(self, state.backend+"_path")
-        layout.prop(self, state.backend+"_model")
+        draw_model_choice(layout, self, state.backend)
         found = find_cli(getattr(self, state.backend+"_path"))
         layout.label(text=f"Using: {found}" if found else "Backend CLI not found", icon="CHECKMARK" if found else "ERROR")
-        row = layout.row()
-        row.prop(self, "model")
-        row.prop(self, "timeout_minutes")
+        layout.prop(self, "timeout_minutes")
         layout.label(text="Uses your CLI sign-in; API key overrides are removed")
         if state.backend == "codex":
             layout.label(text="Read-only blocks writes; reference-only reads are unverified", icon="INFO")

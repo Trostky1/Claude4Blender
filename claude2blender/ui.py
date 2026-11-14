@@ -186,6 +186,11 @@ def _draw_generate(layout, context, state):
     row = layout.row()
     row.enabled = not running
     row.prop(state, "backend")
+    p = claude_cli.prefs()
+    if p is not None:
+        sub = layout.column(align=True)
+        sub.enabled = not running
+        claude_cli.draw_model_choice(sub, p, state.backend)
     if state.gen_error_kind == "quota":
         other = "claude" if state.backend == "codex" else "codex"
         row = layout.row()
@@ -196,7 +201,12 @@ def _draw_generate(layout, context, state):
         box = layout.box()
         box.label(text="Conversation")
         for turn in turns:
-            box.label(text=("You: " if turn["role"] == "user" else turn.get("backend", "Agent").title()+": ")+turn["text"][:120])
+            who = "You"
+            if turn["role"] != "user":
+                who = (turn.get("backend") or "Agent").title()
+                if turn.get("model_label"):
+                    who += f" ({turn['model_label']})"
+            box.label(text=who + ": " + turn["text"][:120])
     row = layout.row(align=True)
     row.scale_y = 1.6
     if running:
@@ -283,6 +293,12 @@ def _draw_status_card(layout, context, state, running):
     right.alignment = "RIGHT"
     right.active = False
     right.label(text=f"{state.gen_elapsed:.0f}s")
+
+    if state.gen_model or state.gen_usage:
+        sub = col.row()
+        sub.scale_y = 0.8
+        sub.active = False
+        sub.label(text=" · ".join(t for t in (state.gen_model, state.gen_usage) if t))
 
     if state.gen_outcome == "QUESTION":
         # A question needs an answer, so it stays visible: reply in the prompt and press Refine.

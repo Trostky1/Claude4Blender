@@ -194,6 +194,8 @@ class C2B_State(bpy.types.PropertyGroup):
         ("DISCARDED", "Discarded", "Discarded without applying"),
     ], default="NONE")
     gen_history_uid: IntProperty(default=0)
+    gen_model: StringProperty(default="")   # model label of the last request
+    gen_usage: StringProperty(default="")   # token counts of the last answer, when the CLI reports them
     target_notes: StringProperty(default="")
     # Material summary from the last Generate
     mat_name: StringProperty(default="")

@@ -102,5 +102,40 @@ check(("claude2blender.generate", "Send to Claude") in ops, "References has its 
 check(any("Enter saves a note" in t for t in texts), "and says what Enter does")
 state.references.clear()
 
+# ---------------------------------------------------------------- model choice from the companion page
+
+import types  # noqa: E402
+from claude2blender import studio  # noqa: E402
+
+info = studio.dispatch("get_state", {})["model"]
+check(info["choice"] == "default" and info["editable"] is False and ["claude-fable-5-2", "Fable 5.2"] in info["options"],
+      "the companion page gets the model list; read-only when Preferences are unavailable")
+prefs = types.SimpleNamespace(claude_model_choice="default", codex_model_choice="default", claude_model="",
+                              codex_model="gpt-test", model="", model_migrated=True)
+real_prefs, claude_cli.prefs = claude_cli.prefs, lambda: prefs
+out = studio.dispatch("set_model", {"backend": "claude", "choice": "claude-sonnet-5-5"})
+check(prefs.claude_model_choice == "claude-sonnet-5-5" and out["label"] == "Sonnet 5.5", "set_model picks a preset")
+prefs.codex_model_choice = "custom"
+out = studio.dispatch("set_model", {"backend": "codex"})
+check(state.backend == "codex" and out == {"backend": "codex", "choice": "custom", "label": "gpt-test"},
+      "switching backend keeps that backend's saved model")
+info = studio.dispatch("get_state", {})["model"]
+check(info["choice"] == "custom" and info["custom"] == "gpt-test" and info["editable"], "get_state reports the active choice")
+studio.dispatch("set_model", {"backend": "claude", "choice": "custom", "custom": " opus "})
+check(prefs.claude_model == "opus" and state.backend == "claude", "a custom name is stored trimmed")
+for bad in ({"backend": "other"}, {"backend": "claude", "choice": "gpt"}, {"backend": "claude", "choice": "custom", "custom": "x" * 201},
+            {"backend": "claude", "choice": "custom", "custom": "a\nb"}):
+    try:
+        studio.dispatch("set_model", bad)
+        refused = False
+    except ValueError:
+        refused = True
+    check(refused, f"set_model refuses {sorted(bad.items())[-1][0]}={str(sorted(bad.items())[-1][1])[:12]!r}")
+check(prefs.claude_model == "opus", "refused requests change nothing")
+from claude2blender import mcp_shim  # noqa: E402
+check("set_model" not in (*mcp_shim.READ_TOOLS, "stage_proposal"), "the MCP shim cannot change the model")
+claude_cli.prefs = real_prefs
+state.backend = "claude"
+
 print(f"\nAll {ok} v0.8 checks passed on Blender {bpy.app.version_string}")
 addon.unregister()
