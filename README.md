@@ -128,6 +128,16 @@ install the command-line version as above.
 5. **References.** Press **Add Images** (or drop images onto the sidebar in
    Blender 4.1+). Set each image's role (Material, Environment, Composition,
    Product) and add an optional note. Thumbnails are kept outside your `.blend`.
+   **Paste Image** adds whatever image is on the clipboard (a screenshot, an
+   image copied in a browser or an image editor, or image files copied in
+   Explorer). On the companion page, **Ctrl+V** anywhere does the same. Pasted
+   images are saved as files in `<name>.c2b/references/` beside the project, so
+   they stay available after the clipboard changes. Pressing Enter in a note
+   only saves the note; **Send** under the list (or Generate) sends the request,
+   and a line above it says how many images and notes will go with it.
+   Clipboard reading uses the operating system's own tools and installs
+   nothing. It was run for real on Windows only; the macOS (osascript) and
+   Linux (wl-paste / xclip) paths are written but not verified.
 6. **Preserve Geometry** is on by default. See below.
 7. **Generate with Claude.** Claude gets your prompt, the mode, the selected
    objects (dimensions, transforms, materials), any selected faces, a short list

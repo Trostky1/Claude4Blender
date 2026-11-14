@@ -10,6 +10,7 @@ import threading
 import uuid
 
 MAX_BODY = 256_000
+MAX_UPLOAD = 12_000_000   # one base64 image of at most 8 MB, plus JSON
 
 
 class Server:
@@ -48,16 +49,20 @@ class Server:
             def do_POST(self):
                 if not self.host_ok() or self.headers.get("Origin", owner.url) != owner.url:
                     return self.reply(403, {"error": "Origin rejected"})
-                if self.path != "/rpc" or not hmac.compare_digest(self.headers.get("Authorization", ""), "Bearer "+owner.token):
+                if self.path not in ("/rpc", "/upload") or not hmac.compare_digest(self.headers.get("Authorization", ""), "Bearer "+owner.token):
                     return self.reply(403, {"error": "Pair with the key from Blender"})
                 try:
+                    # /upload exists only for pasted reference images, which are larger than any other request.
+                    limit = MAX_UPLOAD if self.path == "/upload" else MAX_BODY
                     size = int(self.headers.get("Content-Length", "0"))
-                    if not 0 < size <= MAX_BODY:
-                        raise ValueError("Request must be between 1 and 256000 bytes")
-                    self.connection.settimeout(5)
+                    if not 0 < size <= limit:
+                        raise ValueError(f"Request must be between 1 and {limit} bytes")
+                    self.connection.settimeout(15 if self.path == "/upload" else 5)
                     request = json.loads(self.rfile.read(size))
                     if not isinstance(request, dict):
                         raise ValueError("Expected an object")
+                    if self.path == "/upload" and request.get("method") != "add_reference_image":
+                        raise ValueError("Only pasted reference images may be uploaded")
                     response, expired = queue.Queue(maxsize=1), threading.Event()
                     owner.pending.put_nowait((request, response, expired))
                     try:

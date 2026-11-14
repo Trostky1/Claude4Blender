@@ -137,5 +137,106 @@ check("set_model" not in (*mcp_shim.READ_TOOLS, "stage_proposal"), "the MCP shim
 claude_cli.prefs = real_prefs
 state.backend = "claude"
 
+# ---------------------------------------------------------------- pasted reference images
+
+import base64  # noqa: E402
+import json  # noqa: E402
+import subprocess  # noqa: E402
+import urllib.error  # noqa: E402
+import urllib.request  # noqa: E402
+from claude2blender import clipboard, companion, project_state  # noqa: E402
+
+with open(img.filepath_raw, "rb") as fh:
+    png = fh.read()
+b64 = base64.b64encode(png).decode()
+state.mode = "MATERIAL"
+out = studio.dispatch("add_reference_image", {"image": b64, "name": "../../evil name!.png", "note": " matte finish "})
+saved = bpy.path.abspath(state.references[-1].filepath)
+folder = os.path.join(str(project_state.current().folder), "references")
+check(out["role"] == "material" and out["count"] == 1 and os.path.dirname(saved) == folder
+      and open(saved, "rb").read() == png, "an image pasted on the companion page is saved in the project's references folder")
+check(os.path.basename(saved).startswith("evilname-") and saved.endswith(".png"), "the file name is generated, never a path from the page")
+check(state.references[-1].note == "matte finish" and state.references[-1].role == "MATERIAL", "it becomes a normal reference with its note")
+out = studio.dispatch("add_reference_image", {"image": b64, "role": "environment"})
+check(out["role"] == "environment" and out["count"] == 2 and out["file"] != os.path.basename(saved), "a second paste gets its own file and role")
+request = bridge.build_request(C)
+check([r["exists"] for r in request["references"]] == [True, True], "pasted images are sent like any other reference")
+check(len(studio.dispatch("get_state", {})["references"]) == 2, "the companion page lists them")
+for bad, why in (({"image": "not base64!"}, "bad base64"), ({"image": base64.b64encode(b"GIF89a....").decode()}, "not PNG/JPEG"),
+                 ({"image": b64, "role": "other"}, "unknown role"), ({"image": b64, "note": "x" * 2001}, "long note"), ({}, "no image")):
+    try:
+        studio.dispatch("add_reference_image", bad)
+        refused = False
+    except ValueError:
+        refused = True
+    check(refused and len(state.references) == 2, f"paste refused: {why}")
+jpeg = base64.b64encode(b"\xff\xd8\xff\xe0" + b"0" * 64).decode()
+check(clipboard.save_upload(folder, jpeg).endswith(".jpg"), "JPEG data is saved as .jpg")
+check("add_reference_image" not in (*mcp_shim.READ_TOOLS, "stage_proposal"), "the MCP shim cannot add references")
+
+if os.environ.get("C2B_SKIP_TRANSPORT") != "1":
+    seen = []
+    server = companion.Server(lambda method, params: seen.append((method, len(json.dumps(params)))) or "ok",
+                              os.path.join(tmp, "runtime"))
+
+    def post(path, payload, token=None):
+        req = urllib.request.Request(server.url + path, json.dumps(payload).encode(),
+                                     headers={"Authorization": "Bearer " + (token or server.token), "Content-Type": "application/json"})
+        import threading
+        result = {}
+
+        def go():
+            try:
+                with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=20) as resp:
+                    result["status"], result["body"] = resp.status, json.load(resp)
+            except urllib.error.HTTPError as exc:
+                result["status"], result["body"] = exc.code, json.load(exc)
+            except (urllib.error.URLError, ConnectionError):
+                # The server answers 400 from the headers alone and closes; a client still sending sees a reset.
+                result["status"], result["body"] = 400, {"error": "connection closed"}
+        thread = threading.Thread(target=go)
+        thread.start()
+        while thread.is_alive():
+            server.pump()
+            thread.join(0.02)
+        return result["status"], result["body"]
+
+    big = {"method": "add_reference_image", "params": {"image": "A" * 600_000}}
+    check(post("/upload", big) == (200, {"result": "ok"}) and seen[-1][0] == "add_reference_image", "/upload accepts a large pasted image")
+    check(post("/rpc", big)[0] == 400, "/rpc still refuses bodies over 256 kB")
+    check(post("/upload", {"method": "chat", "params": {"text": "hi"}})[0] == 400 and len(seen) == 1, "/upload accepts nothing but pasted references")
+    small = {"method": "add_reference_image", "params": {"image": "AAAA"}}
+    check(post("/upload", small, token="wrong")[0] == 403 and len(seen) == 1, "/upload needs the pairing key")
+    check(post("/upload", {"method": "add_reference_image", "params": {"image": "A" * 12_100_000}})[0] == 400, "/upload has its own size limit")
+    server.close()
+
+# The real clipboard (opt-in: it replaces what is on the clipboard for a moment). Windows only here.
+if os.environ.get("C2B_CLIPBOARD") == "1" and os.name == "nt":
+    ps = ["powershell.exe", "-NoProfile", "-STA", "-Command"]
+    subprocess.run(ps + ["Add-Type -AssemblyName System.Windows.Forms,System.Drawing; "
+                         "$b = New-Object System.Drawing.Bitmap 40,24; "
+                         "$g = [System.Drawing.Graphics]::FromImage($b); $g.Clear([System.Drawing.Color]::FromArgb(255,200,40,10)); "
+                         "[System.Windows.Forms.Clipboard]::SetImage($b)"], check=True, timeout=30)
+    n = len(state.references)
+    state.mode = "ENVIRONMENT"
+    check(bpy.ops.claude2blender.paste_reference() == {"FINISHED"} and len(state.references) == n + 1, "Paste Image reads a bitmap from the Windows clipboard")
+    pasted = bpy.path.abspath(state.references[-1].filepath)
+    loaded = bpy.data.images.load(pasted)
+    check(tuple(loaded.size) == (40, 24) and abs(loaded.pixels[0] - 200 / 255) < 0.02 and os.path.dirname(pasted) == folder
+          and state.references[-1].role == "ENVIRONMENT", "the pasted file is the clipboard image, saved beside the project, with the mode's role")
+    subprocess.run(ps + ["Set-Clipboard -Value 'plain text, no image'"], check=True, timeout=30)
+    try:
+        result = bpy.ops.claude2blender.paste_reference()
+    except RuntimeError:
+        result = {"CANCELLED"}
+    check(result == {"CANCELLED"} and len(state.references) == n + 1 and "No image on the clipboard" in state.status,
+          "with no image on the clipboard it says so and adds nothing")
+    subprocess.run(ps + ["Add-Type -AssemblyName System.Windows.Forms; $c = New-Object System.Collections.Specialized.StringCollection; "
+                         f"[void]$c.Add('{img.filepath_raw}'); [System.Windows.Forms.Clipboard]::SetFileDropList($c)"], check=True, timeout=30)
+    check(bpy.ops.claude2blender.paste_reference() == {"FINISHED"} and bpy.path.abspath(state.references[-1].filepath) == img.filepath_raw,
+          "an image file copied in Explorer is added by its own path")
+state.references.clear()
+state.mode = "MATERIAL"
+
 print(f"\nAll {ok} v0.8 checks passed on Blender {bpy.app.version_string}")
 addon.unregister()

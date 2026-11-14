@@ -530,15 +530,17 @@ class C2B_PT_references(_Base, Panel):
             col.label(text="No reference images yet", icon="IMAGE_DATA")
             if hasattr(bpy.types, "FileHandler"):
                 col.label(text="Add images, or drop them on this sidebar")
-            row = layout.row()
+            row = layout.row(align=True)
             row.scale_y = 1.2
             row.operator("claude2blender.add_reference", text="Add Images", icon="ADD")
+            row.operator("claude2blender.paste_reference", text="Paste Image", icon="PASTEDOWN")
             return
 
         row = layout.row()
         row.template_list("C2B_UL_references", "", state, "references", state, "active_reference", rows=3)
         side = row.column(align=True)
         side.operator("claude2blender.add_reference", text="", icon="ADD")
+        side.operator("claude2blender.paste_reference", text="", icon="PASTEDOWN")
         side.operator("claude2blender.remove_reference", text="", icon="REMOVE")
         side.separator()
         side.operator("claude2blender.clear_references", text="", icon="TRASH")

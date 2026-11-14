@@ -324,6 +324,32 @@ class C2B_OT_add_reference(Operator, ImportHelper):
         return {"FINISHED"}
 
 
+class C2B_OT_paste_reference(Operator):
+    """Add the image on the clipboard (a screenshot, or an image copied in a browser or image editor) as a reference"""
+    bl_idname = "claude2blender.paste_reference"
+    bl_label = "Paste Image"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        from . import clipboard, project_state
+        state = get_state(context)
+        try:
+            folder = clipboard.folder_for(project_state.current().folder)
+        except OSError as exc:
+            self.report({"ERROR"}, f"Could not create the references folder: {exc}")
+            return {"CANCELLED"}
+        paths, message = clipboard.read_clipboard(folder)
+        if not paths:
+            state.status = message
+            self.report({"WARNING"}, message)
+            return {"CANCELLED"}
+        role = MODE_TO_ROLE[state.mode]
+        added = sum(_add_reference(state, p, role) for p in paths if is_image(p))
+        state.status = f"Pasted {added} reference image{'s' if added != 1 else ''}."
+        self.report({"INFO"}, state.status)
+        return {"FINISHED"}
+
+
 class C2B_OT_remove_reference(Operator):
     """Remove this reference (the image file is not touched)"""
     bl_idname = "claude2blender.remove_reference"
@@ -974,6 +1000,7 @@ _classes = (
     C2B_OT_check_cli,
     C2B_OT_copy_request_json,
     C2B_OT_add_reference,
+    C2B_OT_paste_reference,
     C2B_OT_remove_reference,
     C2B_OT_clear_references,
     C2B_OT_open_reference,

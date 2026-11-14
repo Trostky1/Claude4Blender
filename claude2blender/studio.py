@@ -106,10 +106,29 @@ def dispatch(method, params):
         return dict(store=copy.deepcopy(store.data), scene=bridge.scene_overview(),
                     status=state.gen_detail, backend=state.backend, filepath=bpy.data.filepath,
                     busy=claude_cli.busy(),
+                    references=[dict(file=bpy.path.basename(r.filepath), role=r.role.lower(), note=r.note,
+                                     exists=Path(bpy.path.abspath(r.filepath)).is_file()) for r in state.references],
                     model=dict(choice=models.choice(p, state.backend), label=models.label(p, state.backend),
                                custom=getattr(p, state.backend+"_model", "") if p else "",
                                options=[[i[0], i[1]] for i in models.items(state.backend)],
                                editable=p is not None))
+    if method == "add_reference_image":
+        # An image pasted on the companion page becomes a reference file beside the project.
+        from . import clipboard
+        from .operators import MODE_TO_ROLE, _add_reference
+        role = str(params.get("role") or MODE_TO_ROLE[state.mode]).upper()
+        if role not in ("MATERIAL", "ENVIRONMENT", "COMPOSITION", "PRODUCT"):
+            raise ValueError("Unknown reference role")
+        note = params.get("note", "")
+        if not isinstance(note, str) or len(note) > 2000:
+            raise ValueError("Note is too long")
+        if len(state.references) >= 24:
+            raise ValueError("Remove a reference first (24 at most)")
+        path = clipboard.save_upload(clipboard.folder_for(store.folder), params.get("image"), params.get("name"))
+        _add_reference(state, path, role)
+        state.references[state.active_reference].note = note.strip()
+        bridge._redraw()
+        return dict(file=Path(path).name, role=role.lower(), count=len(state.references))
     if method == "set_model":
         # A setting, not a scene change: which backend and model the next message uses.
         from . import models
