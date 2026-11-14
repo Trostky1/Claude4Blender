@@ -13,7 +13,7 @@ from bpy_extras import view3d_utils
 from mathutils import Vector
 
 from . import bridge, claude_cli, companion, project_state
-from .properties import get_state
+from .properties import ensure_mode, get_state
 
 server = None
 _draw_handle = None
@@ -208,7 +208,7 @@ def dispatch(method, params):
                 from .knowledge import finish_code
                 if any(bpy.data.objects.get(v["object"]) is None or bpy.data.objects[v["object"]].type != "LIGHT" or abs(bpy.data.objects[v["object"]].data.energy-v["energy"]) > .0001 for v in lights.values()):
                     raise ValueError("Light energies changed since capture; rerender before Finish")
-                state.mode = "ENVIRONMENT"
+                ensure_mode(state, "ENVIRONMENT")
                 bridge.send_request(bpy.context, copy_to_clipboard=False)
                 code = finish_code({v["object"]:v["energy"]*float(factors.get(k,1)) for k,v in lights.items()}, exposure)
                 return bridge._api.stage_proposal(code, "Finish light balance and exposure", request_id=state.request_id)
@@ -450,7 +450,7 @@ class C2B_OT_recipe(bpy.types.Operator):
     def execute(self, context):
         from .knowledge import recipe_code
         state = get_state(context)
-        state.mode = "ENVIRONMENT"
+        ensure_mode(state, "ENVIRONMENT")
         bridge.send_request(context, copy_to_clipboard=False)
         bridge._api.stage_proposal(recipe_code(self.seed), f"Studio recipe, seed {self.seed}", request_id=state.request_id)
         return {"FINISHED"}
@@ -478,7 +478,7 @@ class C2B_OT_lightpaint(bpy.types.Operator):
         except (StopIteration, KeyError, ValueError) as exc:
             self.report({"ERROR"}, str(exc) or "Pin a visible surface first"); return {"CANCELLED"}
         state = get_state(context)
-        state.mode = "ENVIRONMENT"
+        ensure_mode(state, "ENVIRONMENT")
         bridge.send_request(context, copy_to_clipboard=False)
         code = f"c2b.light('C2B Highlight', location={tuple(position)!r}, target={tuple(point)!r}, energy=30, size=.2)"
         bridge._api.stage_proposal(code, "Place highlight at pinned surface", request_id=state.request_id)

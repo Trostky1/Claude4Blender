@@ -16,9 +16,10 @@ Categories:
   visibility hiding or showing existing objects (a floor, props)
 
 Always blocked in these modes: deleting anything, re-parenting, constraints,
-swapping the data of existing objects, editing their materials, and moving
-anything that isn't movable (the selection, or the full assembly when that
-is allowed). Geometry, scale and modifiers are Preserve
+swapping the data of existing objects, and moving anything that isn't movable
+(the selection, or the full assembly when that is allowed). Editing or
+assigning materials is blocked too, unless Material is on in the same request
+(permissions["materials"]). Geometry, scale and modifiers are Preserve
 Geometry's job.
 """
 
@@ -43,8 +44,14 @@ OUTPUT_KEYS = ("render.engine", "render.resolution_x", "render.resolution_y", "r
                "render.pixel_aspect_x", "render.pixel_aspect_y")
 
 
+def request_modes(request):
+    """Lower-case modes of a request; requests from before 0.8.2 carry only `mode`."""
+    modes = (request or {}).get("modes") or [(request or {}).get("mode")]
+    return [str(m).lower() for m in modes if m]
+
+
 def applies(request):
-    return bool(request) and request.get("mode") in GUARDED_MODES
+    return any(m in GUARDED_MODES for m in request_modes(request))
 
 
 def movable_names(request, permissions):
@@ -141,15 +148,15 @@ class Snapshot:
                     untracked = True
                 if changed & {"hide_viewport", "hide_render"}:
                     need("visibility", f"hid or showed {name}")
-                if "slots" in changed:
-                    forbid(f"changed the materials of {name} (use Material mode)")
+                if "slots" in changed and not perms.get("materials"):
+                    forbid(f"changed the materials of {name} (turn on Material as well)")
                 if "data" in changed:
                     forbid(f"replaced the data of {name}")
                     untracked = True
                 if "location" in changed or changed & set(ROT_KEYS):
                     if name not in self.movable:
                         forbid(f"moved {name}, which isn't selected"
-                               + ("" if self.request.get("mode") != "composition" else
+                               + ("" if "composition" not in request_modes(self.request) else
                                   " (select it, or allow the full assembly)"))
                         continue
                 if "location" in changed:
@@ -212,8 +219,8 @@ class Snapshot:
                 continue
             if role(m) == "backdrop" or _only_generated_users(m):
                 need("backdrop", f"edited material {name}")
-            else:
-                forbid(f"edited material {name} (use Material mode)")
+            elif not perms.get("materials"):
+                forbid(f"edited material {name} (turn on Material as well)")
 
         # Toggles that would have let this change through (none when something is always blocked).
         self.blocked_categories = [] if "_" in problems else [c for c in CATEGORIES if c in problems]

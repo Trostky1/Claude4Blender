@@ -122,6 +122,17 @@ install the command-line version as above.
    Claude what kind of change you want and what it must leave alone. In
    Environment and Composition, an **Allowed** line under the mode shows what
    Claude may change. Click it to open the toggles (see below).
+   **Combining modes:** the mode buttons are toggles. Click one for a single
+   mode, or **Shift+click** another to turn on several, for example Material +
+   Environment for "brushed steel body under a soft key light". A combined
+   request is one proposal: one Preview, one Apply and one Undo cover all of
+   it. Each mode adds its own permissions and nothing else: Environment +
+   Composition allows what either allows, and Material adds material changes
+   (which the scene modes block on their own). Everything else the guard and
+   Preserve Geometry protect stays protected. At least one mode is always on.
+   The Shift+click gesture is Blender's standard behaviour for this kind of
+   button and has not been checked by hand in this build; the combining itself
+   is covered by tests.
 3. **Prompt.** Type in the field, or press the pencil for a wider editor.
 4. **Selection.** Select objects in Object Mode, or press **Tab** and select faces
    to target a region of a mesh. The panel shows what will be sent.

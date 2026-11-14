@@ -30,7 +30,7 @@ import bmesh
 from bpy.app.handlers import persistent
 
 from . import history, scene_tools
-from .properties import MODE_LABELS, PERMISSION_ITEMS, get_state, permissions_for
+from .properties import MODE_LABELS, PERMISSION_ITEMS, active_modes, get_state, permissions_for
 
 API_NAME = "claude2blender"
 API_VERSION = "0.5.0"
@@ -57,6 +57,11 @@ MODE_GUIDANCE = {
         "objects, and change transforms only (never mesh data, scale or parenting)."
     ),
 }
+
+COMBINED_GUIDANCE = (
+    " This request combines these modes: do all of it in one block of code, which the user applies and "
+    "undoes as a single change. Each part keeps its own mode's rules."
+)
 
 PRESERVE_RULE = (
     "Preserve Geometry is ON: do not edit mesh data (vertices, edges, faces), object scale or "
@@ -169,6 +174,7 @@ def build_request(context=None):
     context = context or bpy.context
     state = get_state(context)
     scene = context.scene
+    modes = active_modes(state)
     refs = []
     for ref in state.references:
         path = bpy.path.abspath(ref.filepath)
@@ -185,8 +191,9 @@ def build_request(context=None):
         "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "prompt": state.prompt.strip(),
         "mode": state.mode.lower(),
-        "mode_label": MODE_LABELS[state.mode],
-        "mode_guidance": MODE_GUIDANCE[state.mode],
+        "modes": [m.lower() for m in modes],
+        "mode_label": " + ".join(MODE_LABELS[m] for m in modes),
+        "mode_guidance": " ".join(MODE_GUIDANCE[m] for m in modes) + (COMBINED_GUIDANCE if len(modes) > 1 else ""),
         "preserve_geometry": state.preserve_geometry,
         "rules": [PRESERVE_RULE] if state.preserve_geometry else [],
         "permissions": permissions_block(state, context),
@@ -211,7 +218,7 @@ def build_request(context=None):
             "bpy.app.driver_namespace['claude2blender'].helpers_help()). The user reviews it and presses Apply."
         ),
     }
-    if state.mode in ("ENVIRONMENT", "COMPOSITION"):
+    if "ENVIRONMENT" in modes or "COMPOSITION" in modes:
         request["scene"]["layout"] = scene_tools.scene_layout(request)
     return request
 
@@ -222,6 +229,8 @@ def permissions_block(state, context=None):
     if perms is None:
         return None
     allowed = [label for key, label, *_ in PERMISSION_ITEMS if perms[key]]
+    if perms.get("materials"):
+        allowed.append("Materials (through assign_material on the targets)")
     blocked = [label for key, label, *_ in PERMISSION_ITEMS if not perms[key]]
     from . import guard
     movable = sorted(guard.movable_names({"selection": live_selection(context)}, perms))

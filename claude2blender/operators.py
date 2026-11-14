@@ -7,7 +7,7 @@ from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper
 
 from . import bridge, claude_cli, guard, history, materials, presets, refmatch, scene_tools
-from .properties import REFERENCE_ROLES, get_state, permissions_for
+from .properties import REFERENCE_ROLES, ensure_mode, get_state, permissions_for
 from .references import IMAGE_EXTENSIONS, is_image
 
 IMAGE_GLOB = ";".join("*" + ext for ext in IMAGE_EXTENSIONS)
@@ -97,7 +97,7 @@ class C2B_OT_stage_style(Operator):
 
     def execute(self, context):
         state = get_state(context)
-        state.mode = "ENVIRONMENT"
+        ensure_mode(state, "ENVIRONMENT")
         bridge.send_request(context, copy_to_clipboard=False)
         label = scene_tools.STUDIO_STYLES[state.studio_style]["label"]
         bridge._api.stage_proposal(scene_tools.style_code(state.studio_style), f"Studio style: {label}")
@@ -137,7 +137,7 @@ class C2B_OT_measure_lighting(Operator):
         if not names:
             self.report({"WARNING"}, "Nothing to light: select the product")
             return {"CANCELLED"}
-        state.mode = "ENVIRONMENT"
+        ensure_mode(state, "ENVIRONMENT")
         try:
             _match_job = refmatch.start_match(context, bpy.path.abspath(ref.filepath), names)
         except RuntimeError as exc:
@@ -560,7 +560,7 @@ def run_change(op, context, code, summary, request, preview=False):
     perms = None
     snap = None
     if guard.applies(request):
-        perms = permissions_for(state, request["mode"]) or {}
+        perms = permissions_for(state, request.get("modes") or request["mode"]) or {}
         snap = guard.Snapshot(request, perms)  # after Pending, so its hidden backups count as existing
     scene_tools.bind(request, perms or {})
     notes = materials.TargetNotes()
@@ -627,7 +627,7 @@ def run_change(op, context, code, summary, request, preview=False):
             pass
 
     if preview:
-        _set_material_view(context, True, request.get("mode") if request else None)
+        _set_material_view(context, True, (request.get("modes") or request.get("mode")) if request else None)
         state.status = f"Previewing: {summary}"
         op.report({"INFO"}, f"Previewing: {summary}. Apply keeps it, Discard reverts it")
         return True
@@ -691,6 +691,7 @@ def _set_material_view(context, on, mode=None):
     """
     wm = context.window_manager
     scene = context.scene
+    modes = [mode] if isinstance(mode, str) else list(mode or [])
     for window in wm.windows:
         for area in window.screen.areas:
             if area.type != "VIEW_3D":
@@ -704,13 +705,13 @@ def _set_material_view(context, on, mode=None):
                     saved = {"type": shading.type}
                     if shading.type == "SOLID":
                         shading.type = "MATERIAL"
-                    if mode == "environment" and shading.type == "MATERIAL":
+                    if "environment" in modes and shading.type == "MATERIAL":
                         saved["use_scene_lights"] = shading.use_scene_lights
                         saved["use_scene_world"] = shading.use_scene_world
                         shading.use_scene_lights = True
                         shading.use_scene_world = True
                     r3d = getattr(space, "region_3d", None)
-                    if mode == "composition" and scene.camera is not None and r3d is not None:
+                    if "composition" in modes and scene.camera is not None and r3d is not None:
                         saved["view_perspective"] = r3d.view_perspective
                         r3d.view_perspective = "CAMERA"
                     _shading_restore[key] = saved

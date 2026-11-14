@@ -26,6 +26,55 @@ MODES = [
     ("COMPOSITION", "Composition", "Composition Match: match camera, product pose or exploded view", "CAMERA_DATA", 2),
 ]
 
+MODE_ORDER = tuple(m[0] for m in MODES)
+# The same modes as on/off toggles, so one request can combine them.
+MODE_FLAGS = [(m[0], m[1], m[2] + ". Click several to combine them in one request", m[3], 1 << i)
+              for i, m in enumerate(MODES)]
+
+_syncing = False
+
+
+def _mode_changed(self, _context):
+    """Setting `mode` (older code, presets, tests) means exactly that one mode."""
+    global _syncing
+    if _syncing:
+        return
+    _syncing = True
+    try:
+        if set(self.modes) != {self.mode}:
+            self.modes = {self.mode}
+    finally:
+        _syncing = False
+
+
+def _modes_changed(self, _context):
+    """The toggles: at least one stays on, and `mode` follows as the first one that is on."""
+    global _syncing
+    if _syncing:
+        return
+    _syncing = True
+    try:
+        if not self.modes:
+            self.modes = {self.mode}
+        else:
+            first = next(m for m in MODE_ORDER if m in self.modes)
+            if self.mode != first:
+                self.mode = first
+    finally:
+        _syncing = False
+
+
+def active_modes(state):
+    """The modes that are on, in a fixed order (Material, Environment, Composition)."""
+    return [m for m in MODE_ORDER if m in state.modes] or [state.mode]
+
+
+def ensure_mode(state, mode):
+    """Make sure `mode` is on without dropping a combination that already includes it."""
+    if mode not in state.modes:
+        state.mode = mode
+
+
 MODE_LABELS = {
     "MATERIAL": "Material Match",
     "ENVIRONMENT": "Environment Match",
@@ -105,13 +154,24 @@ C2B_PermissionsComp = _permissions_class("COMPOSITION")
 
 
 def permissions_for(state, mode=None):
-    """The allowed-change toggles of a mode as a dict (None for Material mode)."""
-    mode = (mode or state.mode).upper()
-    group = {"ENVIRONMENT": state.perm_env, "COMPOSITION": state.perm_comp}.get(mode)
-    if group is None:
+    """The allowed-change toggles as a dict (None when only Material is on).
+
+    `mode` is one mode, a list of modes, or None for the modes that are on now. With several modes each one
+    adds its own toggles and nothing else: Environment + Composition allows what either allows, and
+    Material adds `materials` (editing and assigning materials), which the scene modes forbid on their own.
+    """
+    if mode is None:
+        modes = active_modes(state)
+    elif isinstance(mode, str):
+        modes = [mode.upper()]
+    else:
+        modes = [str(m).upper() for m in mode]
+    groups = [g for m, g in (("ENVIRONMENT", state.perm_env), ("COMPOSITION", state.perm_comp)) if m in modes]
+    if not groups:
         return None
-    out = {key: getattr(group, key) for key, *_ in PERMISSION_ITEMS}
-    out["full_assembly"] = group.full_assembly
+    out = {key: any(getattr(g, key) for g in groups) for key, *_ in PERMISSION_ITEMS}
+    out["full_assembly"] = any(g.full_assembly for g in groups)
+    out["materials"] = "MATERIAL" in modes
     return out
 
 
@@ -124,7 +184,10 @@ class C2B_State(bpy.types.PropertyGroup):
         description="Describe what you want Claude to do",
         default="",
     )
-    mode: EnumProperty(name="Mode", items=MODES, default="MATERIAL")
+    mode: EnumProperty(name="Mode", items=MODES, default="MATERIAL", update=_mode_changed)
+    modes: EnumProperty(name="Modes", items=MODE_FLAGS, options={"ENUM_FLAG"}, default={"MATERIAL"},
+                        update=_modes_changed,
+                        description="What this request may change. Turn on more than one to combine them")
     preset: EnumProperty(name="Studio preset", items=PRESET_ITEMS, default="plastic_white",
                          description="Tuned product material from the studio library (no Claude call needed)")
     studio_style: EnumProperty(name="Studio style", items=STYLE_ITEMS, default="dark",

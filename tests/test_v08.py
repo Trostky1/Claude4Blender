@@ -238,5 +238,111 @@ if os.environ.get("C2B_CLIPBOARD") == "1" and os.name == "nt":
 state.references.clear()
 state.mode = "MATERIAL"
 
+# ---------------------------------------------------------------- several modes in one request
+
+from claude2blender import guard, history, properties  # noqa: E402
+
+api = bpy.app.driver_namespace["claude2blender"]
+bpy.ops.mesh.primitive_cube_add(size=0.2, location=(0, 0, 0.1))
+body = C.active_object
+body.name = "Body"
+bpy.ops.mesh.primitive_plane_add(size=2)
+table = C.active_object
+table.name = "Table"
+bpy.ops.object.select_all(action="DESELECT")
+body.select_set(True)
+C.view_layer.objects.active = body
+
+check(set(state.modes) == {"MATERIAL"} and properties.active_modes(state) == ["MATERIAL"], "one mode by default, as before")
+state.mode = "ENVIRONMENT"
+check(set(state.modes) == {"ENVIRONMENT"}, "setting mode (older code, presets) still means exactly that mode")
+state.modes = {"COMPOSITION", "MATERIAL"}
+check(state.mode == "MATERIAL" and properties.active_modes(state) == ["MATERIAL", "COMPOSITION"], "modes combine; mode follows as the first one on")
+state.modes = set()
+check(set(state.modes) == {"MATERIAL"}, "at least one mode always stays on")
+state.modes = {"ENVIRONMENT", "COMPOSITION"}
+properties.ensure_mode(state, "ENVIRONMENT")
+check(set(state.modes) == {"ENVIRONMENT", "COMPOSITION"}, "Use Style / Measure keep a combination that already has Environment")
+
+# How permissions combine: each mode adds its own toggles, nothing else.
+state.perm_env.lighting, state.perm_env.camera, state.perm_comp.camera, state.perm_comp.lighting = True, False, True, False
+state.perm_env.full_assembly, state.perm_comp.full_assembly = False, True
+check(properties.permissions_for(state, "MATERIAL") is None, "Material alone has no scene permissions (no guard), as before")
+env, comp = properties.permissions_for(state, "ENVIRONMENT"), properties.permissions_for(state, "COMPOSITION")
+both = properties.permissions_for(state, ["ENVIRONMENT", "COMPOSITION"])
+check(all(both[k] == (env[k] or comp[k]) for k in guard.CATEGORIES) and both["full_assembly"] and not both["materials"],
+      "Environment + Composition allows what either allows")
+check(env["lighting"] and not env["camera"] and not env["materials"], "a single mode's permissions are unchanged")
+mixed = properties.permissions_for(state, ["MATERIAL", "ENVIRONMENT"])
+check(mixed["materials"] and all(mixed[k] == env[k] for k in guard.CATEGORIES), "Material + Environment adds only 'materials' to Environment's toggles")
+
+state.modes = {"MATERIAL", "ENVIRONMENT"}
+state.prompt = "Brushed steel body under a soft key light"
+request, _text = bridge.send_request(C, copy_to_clipboard=False)
+check(request["mode"] == "material" and request["modes"] == ["material", "environment"], "the request lists every mode that is on")
+check(request["mode_label"] == "Material Match + Environment Match" and "combines these modes" in request["mode_guidance"],
+      "label and guidance name the combination")
+check(request["permissions"]["materials"] and "layout" in request["scene"]
+      and any("Materials" in a for a in request["permissions"]["allowed"]), "it carries scene permissions, layout and the materials permission")
+system = claude_cli.system_prompt(request["modes"])
+check("Material mode:" in system and "Environment mode:" in system and "Scene helpers" in system
+      and "Combined request" in system and "Composition mode:" not in system, "the agent gets both modes' rules and the combined rule")
+check(claude_cli.system_prompt("material") == claude_cli.SYSTEM_PROMPT and "Combined request" not in claude_cli.system_prompt("environment"),
+      "single-mode prompts are unchanged")
+state.mode = "ENVIRONMENT"
+texts, _ops = draw(ui.C2B_PT_main)
+check("Mode" in texts and "Shift+click another mode to combine them" in texts, "one mode: the panel says how to combine")
+state.modes = {"MATERIAL", "ENVIRONMENT", "COMPOSITION"}
+texts, ops = draw(ui.C2B_PT_main)
+check("Modes (combined in one request)" in texts and any(t.startswith("Environment may change") for t in texts)
+      and any(t.startswith("Composition may change") for t in texts) and ("claude2blender.stage_preset", "Use Preset") in ops,
+      "three modes: presets, styles and each scene mode's toggles are all shown")
+
+# One change, one Apply, one Undo for a combined request; the guard follows the combined set.
+COMBO = ("mat = bpy.data.materials.get('Combo Steel') or bpy.data.materials.new('Combo Steel')\n"
+         "mat.use_nodes = True\nassign_material(mat)\n"
+         "c2b.light('C2B Combo Key', location=(1, -1, 2), target=(0, 0, 0), energy=40)\n")
+
+
+def stage(modes, code, summary):
+    state.modes = set(modes)
+    bridge.send_request(C, copy_to_clipboard=False)
+    api.stage_proposal(code, summary)
+
+
+state.perm_env.lighting = True
+stage({"ENVIRONMENT"}, COMBO, "combo in Environment only")
+bpy.ops.claude2blender.apply_proposal()
+check(state.status.startswith("Blocked by Allowed Changes") and "turn on Material as well" in state.status
+      and "C2B Combo Key" not in bpy.data.objects and not body.material_slots, "Environment alone still blocks material changes, and says how to allow them")
+state.proposal_pending = False
+n = len(history.entries())
+stage({"MATERIAL", "ENVIRONMENT"}, COMBO, "Steel body and key light")
+bpy.ops.claude2blender.preview_proposal()
+check(history.preview_entry() is not None and body.material_slots[0].material.name == "Combo Steel"
+      and "C2B Combo Key" in C.scene.objects, "Material + Environment: one preview shows the material and the light")
+bpy.ops.claude2blender.apply_proposal()
+check(len(history.entries()) == n + 1 and history.entries()[-1]["request"]["modes"] == ["material", "environment"],
+      "it is one History entry")
+bpy.ops.claude2blender.history_undo()
+check((not body.material_slots or body.material_slots[0].material is None) and "C2B Combo Key" not in C.scene.objects,
+      "one Undo takes back the material and the light together")
+bpy.ops.claude2blender.history_redo()
+check(body.material_slots[0].material.name == "Combo Steel" and "C2B Combo Key" in C.scene.objects, "one Redo brings both back")
+stage({"MATERIAL", "ENVIRONMENT"}, "bpy.data.objects['Table'].location.x += 1.0", "moves the table")
+bpy.ops.claude2blender.apply_proposal()
+check(state.status.startswith("Blocked by Allowed Changes") and abs(table.location.x) < 1e-6,
+      "combining with Material does not loosen the scene guard")
+state.proposal_pending = False
+state.preserve_geometry = True
+stage({"MATERIAL", "ENVIRONMENT"}, "bpy.data.objects['Body'].scale.x = 3.0", "scales the body")
+bpy.ops.claude2blender.apply_proposal()
+check(not state.last_apply_ok and "Preserve Geometry" in state.status, "Preserve Geometry still guards a combined request")
+state.proposal_pending = False
+old_request = {"mode": "environment", "selection": {"objects": [], "faces": []}}
+check(guard.applies(old_request) and not guard.applies({"mode": "material"}) and guard.request_modes(old_request) == ["environment"],
+      "requests saved before 0.8.2 (mode only) are still understood")
+state.mode = "MATERIAL"
+
 print(f"\nAll {ok} v0.8 checks passed on Blender {bpy.app.version_string}")
 addon.unregister()

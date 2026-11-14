@@ -5,7 +5,7 @@ import bpy
 from bpy.types import Panel, UIList
 
 from . import bridge, claude_cli, history, version
-from .properties import PERMISSION_ITEMS, ROLE_ICONS, get_state, permissions_for
+from .properties import PERMISSION_ITEMS, ROLE_ICONS, active_modes, get_state, permissions_for
 from .references import icon_for
 
 CATEGORY = "Claude"
@@ -75,9 +75,15 @@ class C2B_PT_main(_Base, Panel):
             layout.separator(factor=0.5)
 
         col = layout.column(align=True)
-        col.label(text="Mode")
-        col.row(align=True).prop(state, "mode", expand=True)
-        if state.mode == "ENVIRONMENT":
+        modes = active_modes(state)
+        col.label(text="Mode" if len(modes) == 1 else "Modes (combined in one request)")
+        # Toggles: click one for a single mode, or turn on several to combine them.
+        col.row(align=True).prop(state, "modes", expand=True)
+        if "MATERIAL" in modes:
+            row = col.row(align=True)
+            row.prop(state, "preset", text="", icon="MATERIAL")
+            row.operator("claude2blender.stage_preset", text="Use Preset", icon="IMPORT")
+        if "ENVIRONMENT" in modes:
             row = col.row(align=True)
             row.prop(state, "studio_style", text="", icon="LIGHT_AREA")
             row.operator("claude2blender.stage_style", text="Use Style", icon="IMPORT")
@@ -89,12 +95,16 @@ class C2B_PT_main(_Base, Panel):
             else:
                 row.operator("claude2blender.measure_lighting", text="Measure Lighting from Reference",
                              icon="LIGHT_AREA")
-        if state.mode != "MATERIAL":
-            _draw_permissions(col, context, state)
+        scene_modes = [m for m in modes if m != "MATERIAL"]
+        for mode in scene_modes:
+            _draw_permissions(col, context, state, mode, titled=len(scene_modes) > 1)
+        hint = col.column(align=True)
+        hint.scale_y = 0.8
+        hint.active = False
+        if len(modes) > 1:
+            hint.label(text="One request, one Apply, one Undo for all of it", icon="INFO")
         else:
-            row = col.row(align=True)
-            row.prop(state, "preset", text="", icon="MATERIAL")
-            row.operator("claude2blender.stage_preset", text="Use Preset", icon="IMPORT")
+            hint.label(text="Shift+click another mode to combine them", icon="INFO")
 
         layout.separator(factor=0.5)
 
@@ -133,10 +143,11 @@ class C2B_PT_main(_Base, Panel):
                 sub.label(text=line, icon="INFO" if i == 0 else "BLANK1")
 
 
-def _draw_permissions(layout, context, state):
-    """Compact 'Allowed changes' row; expands into toggles."""
-    group = state.perm_env if state.mode == "ENVIRONMENT" else state.perm_comp
-    perms = permissions_for(state)
+def _draw_permissions(layout, context, state, mode=None, titled=False):
+    """Compact 'Allowed changes' row for one scene mode; expands into toggles."""
+    mode = mode or state.mode
+    group = state.perm_env if mode == "ENVIRONMENT" else state.perm_comp
+    perms = permissions_for(state, mode)
     on = [label for key, label, *_ in PERMISSION_ITEMS if perms[key]]
     box = layout.box()
     col = box.column(align=True)
@@ -146,7 +157,9 @@ def _draw_permissions(layout, context, state):
     sub = row.row(align=True)
     sub.scale_y = 0.9
     summary = ", ".join(on) if on else "nothing"
-    sub.label(text=f"Allowed: {summary}" if len(summary) < 44 else f"Allowed: {len(on)} of {len(PERMISSION_ITEMS)}")
+    head = f"{mode.title()} may change" if titled else "Allowed"
+    sub.label(text=f"{head}: {summary}" if len(summary) < 44 - len(head) + 7
+              else f"{head}: {len(on)} of {len(PERMISSION_ITEMS)}")
     if not state.show_permissions:
         return
     grid = col.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
@@ -158,7 +171,7 @@ def _draw_permissions(layout, context, state):
         sub.active = False
         sub.label(text="Claude may hide or show your objects", icon="HIDE_OFF")
     moves = perms["positions"] or perms["rotations"] or perms["spacing"]
-    if state.mode == "COMPOSITION" or moves:
+    if mode == "COMPOSITION" or moves:
         col.separator(factor=0.4)
         col.prop(group, "full_assembly", text="Full assembly (any object may move)", icon="OUTLINER_COLLECTION")
     hint = col.column(align=True)
