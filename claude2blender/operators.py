@@ -427,7 +427,11 @@ def _schedule_rollback(reason):
                 continue
         state = get_state()
         state.last_apply_ok = False
-        state.status = f"Rolled back: {reason}" if done else f"{reason}. Press Ctrl+Z to undo."
+        if state.status.startswith("Blocked by Allowed Changes"):
+            # Keep the sentence that says what was blocked; only add what happened to the scene.
+            state.status += ". Nothing was changed." if done else ". Press Ctrl+Z to undo it."
+        else:
+            state.status = f"Rolled back: {reason}" if done else f"{reason}. Press Ctrl+Z to undo."
         bridge._redraw()
         return None
 
@@ -496,6 +500,7 @@ class C2B_OT_discard_proposal(Operator):
         state.proposal_pending = False
         state.proposal_code = ""
         state.proposal_summary = ""
+        state.blocked_perms = ""
         state.status = "Change discarded."
         if history.preview_entry() is not None:
             _end_preview(self, context, keep=False)
@@ -511,6 +516,7 @@ def run_change(op, context, code, summary, request, preview=False):
     on Discard / End Preview, moved into History by Apply.
     """
     state = get_state(context)
+    state.blocked_perms = ""
 
     # Make sure the state before Apply is its own undo step, so Ctrl+Z on the
     # Apply never also undoes earlier changes made outside the panel.
@@ -547,6 +553,7 @@ def run_change(op, context, code, summary, request, preview=False):
         pending.discard()
         state.last_apply_ok = False
         state.status = f"Apply failed: {type(exc).__name__}: {exc}"
+        history.trace(("preview" if preview else "apply") + " not kept: " + state.status)
         op.report({"ERROR"}, state.status)
         _schedule_rollback(f"the change raised {type(exc).__name__}")
         return False
@@ -558,6 +565,7 @@ def run_change(op, context, code, summary, request, preview=False):
             detail = "; ".join(problems[:3]) + (" ..." if len(problems) > 3 else "")
             state.last_apply_ok = False
             state.status = f"Preserve Geometry blocked this change ({detail})"
+            history.trace(("preview" if preview else "apply") + " not kept: " + state.status)
             op.report({"WARNING"}, state.status)
             _schedule_rollback(f"Preserve Geometry ({detail})")
             return False
@@ -568,6 +576,8 @@ def run_change(op, context, code, summary, request, preview=False):
             detail = "; ".join(problems[:3]) + (" ..." if len(problems) > 3 else "")
             state.last_apply_ok = False
             state.status = f"Blocked by Allowed Changes. {detail}"
+            state.blocked_perms = ",".join(snap.blocked_categories)
+            history.trace(("preview" if preview else "apply") + " not kept: " + state.status)
             op.report({"WARNING"}, state.status)
             entry = history.build_entry(pending, code, summary, request)
             if not untracked and entry["patch_ok"]:
@@ -717,6 +727,32 @@ class C2B_OT_preview_proposal(Operator):
         state = get_state(context)
         run_change(self, context, state.proposal_code, state.proposal_summary,
                    bridge.get_request_for_apply(context), preview=True)
+        return {"FINISHED"}
+
+
+class C2B_OT_allow_retry(Operator):
+    """Turn on the Allowed Changes toggles this change needs, then preview it again"""
+    bl_idname = "claude2blender.allow_retry"
+    bl_label = "Allow and Preview Again"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        state = get_state(context)
+        return bool(state.proposal_pending and state.blocked_perms and history.preview_entry() is None)
+
+    def execute(self, context):
+        state = get_state(context)
+        request = bridge.get_request_for_apply(context)
+        modes = [m.upper() for m in (request.get("modes") or [request.get("mode", "")])]
+        groups = [g for m, g in (("ENVIRONMENT", state.perm_env), ("COMPOSITION", state.perm_comp)) if m in modes]
+        keys = [k for k in state.blocked_perms.split(",") if k in guard.CATEGORIES]
+        if not groups or not keys:
+            return {"CANCELLED"}
+        for group in groups:
+            for key in keys:
+                setattr(group, key, True)
+        run_change(self, context, state.proposal_code, state.proposal_summary, request, preview=True)
         return {"FINISHED"}
 
 
@@ -946,6 +982,7 @@ _classes = (
     C2B_OT_discard_proposal,
     C2B_OT_apply_proposal,
     C2B_OT_preview_proposal,
+    C2B_OT_allow_retry,
     C2B_OT_end_preview,
     C2B_OT_compare_preview,
     C2B_OT_history_undo,

@@ -75,6 +75,7 @@ PERMISSION_ITEMS = (
     ("rotations", "Rotations", "ORIENTATION_GIMBAL", "Rotate the selected objects"),
     ("spacing", "Spacing", "FULLSCREEN_ENTER", "Change the distances between the selected objects (exploded views)"),
     ("output", "Output", "OUTPUT", "Change the render engine or output resolution"),
+    ("visibility", "Hide / Show", "HIDE_OFF", "Hide or show your existing objects, such as a floor or props"),
 )
 
 PERMISSION_DEFAULTS = {
@@ -159,6 +160,8 @@ class C2B_State(bpy.types.PropertyGroup):
     last_apply_ok: BoolProperty(default=False)
     last_apply_summary: StringProperty(default="")
     status: StringProperty(default="")
+    # Allowed-change toggles the last blocked Preview/Apply needed (comma separated keys).
+    blocked_perms: StringProperty(default="")
 
     # Generate with Claude (Claude Code CLI)
     gen_status: EnumProperty(items=[

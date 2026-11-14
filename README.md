@@ -332,8 +332,13 @@ taken back on the spot and the panel says what was blocked, for example
 so you can allow it or ask Claude for another version. These are always blocked
 in both modes: deleting anything, re-parenting, adding constraints, changing
 their materials (use Material mode), and moving objects that aren't movable.
-Hiding or showing your existing objects is blocked too, unless **Full assembly**
-is on (for example, to hide a floor or props before a clean render).
+Hiding or showing your existing objects (for example a floor or props before a
+clean render) needs the **Hide / Show** toggle, which is off by default.
+
+When a Preview or Apply is blocked, the change shows for a moment and is taken
+back. The panel then says which toggle is off and what it blocked, under the
+Preview / Apply buttons and in Review & Apply, with an **Allow … and preview
+again** button that turns the toggle on and runs the preview again.
 Preserve Geometry still guards meshes, UVs, scale and modifiers.
 
 ### Preview

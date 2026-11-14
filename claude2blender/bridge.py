@@ -229,7 +229,9 @@ def permissions_block(state, context=None):
     return dict(perms, allowed=allowed, not_allowed=blocked,
                 movable=movable if moves else [],
                 note=("Changes outside these are rolled back automatically. Never delete anything; "
-                      "hide with c2b.retire(obj) instead. Keep the output resolution and render engine "
+                      "retire your own C2B lights and helpers with c2b.retire(obj) instead. Hiding or showing "
+                      "the user's existing objects (set hide_viewport and hide_render together) needs "
+                      "'Hide / Show' to be allowed. Keep the output resolution and render engine "
                       "unless 'output' is allowed."))
 
 
@@ -357,6 +359,7 @@ class Claude2BlenderAPI:
         state.proposal_request_id = request_id if request_id is not None else state.request_id
         state.proposal_pending = True
         state.target_notes = ""
+        state.blocked_perms = ""
         if not _from_generate:
             # Staged through the Claude Desktop fallback: the Generate card no longer describes it.
             if state.gen_outcome == "STAGED":

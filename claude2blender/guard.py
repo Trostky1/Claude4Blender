@@ -13,10 +13,10 @@ Categories:
   rotations  rotating the movable objects
   spacing    changing the distances between the movable objects (exploded views)
   output     render engine and output resolution
+  visibility hiding or showing existing objects (a floor, props)
 
 Always blocked in these modes: deleting anything, re-parenting, constraints,
-swapping the data of existing objects, editing their materials, hiding or
-showing existing objects unless the full assembly is allowed, and moving
+swapping the data of existing objects, editing their materials, and moving
 anything that isn't movable (the selection, or the full assembly when that
 is allowed). Geometry, scale and modifiers are Preserve
 Geometry's job.
@@ -29,11 +29,12 @@ import bpy
 from . import history
 from .scene_tools import is_generated, role, selected_names
 
-CATEGORIES = ("lighting", "world", "backdrop", "camera", "positions", "rotations", "spacing", "output")
+CATEGORIES = ("lighting", "world", "backdrop", "camera", "positions", "rotations", "spacing", "output",
+              "visibility")
 LABELS = {
     "lighting": "Lighting", "world": "World environment", "backdrop": "Background/backdrop",
     "camera": "Camera", "positions": "Object positions", "rotations": "Object rotations",
-    "spacing": "Object spacing", "output": "Render output",
+    "spacing": "Object spacing", "output": "Render output", "visibility": "Hide / Show",
 }
 GUARDED_MODES = ("environment", "composition")
 ROT_KEYS = ("rotation_mode", "rotation_euler", "rotation_quaternion", "rotation_axis_angle")
@@ -63,6 +64,7 @@ class Snapshot:
         self.request = request
         self.perms = dict(permissions)
         self.movable = movable_names(request, permissions)
+        self.blocked_categories = []
         self.ids = {c: {i.name for i in getattr(bpy.data, c)} for c in IDS}
         self.objects = {}
         for obj in bpy.data.objects:
@@ -137,8 +139,8 @@ class Snapshot:
                 if "constraints" in changed:
                     forbid(f"constraints changed on {name}")
                     untracked = True
-                if changed & {"hide_viewport", "hide_render"} and not perms.get("full_assembly"):
-                    forbid(f"hid or showed {name} (turn on Full assembly to allow hiding objects)")
+                if changed & {"hide_viewport", "hide_render"}:
+                    need("visibility", f"hid or showed {name}")
                 if "slots" in changed:
                     forbid(f"changed the materials of {name} (use Material mode)")
                 if "data" in changed:
@@ -213,6 +215,8 @@ class Snapshot:
             else:
                 forbid(f"edited material {name} (use Material mode)")
 
+        # Toggles that would have let this change through (none when something is always blocked).
+        self.blocked_categories = [] if "_" in problems else [c for c in CATEGORIES if c in problems]
         return _sentences(problems), untracked
 
 

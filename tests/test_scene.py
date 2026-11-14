@@ -275,17 +275,53 @@ bpy.data.objects.remove(tmp)
 problems, untracked = snap.check()
 check(problems and "deleted Temp Light" in problems[0] and untracked, "deleting a scene element is always blocked")
 
-# Hiding an existing object needs Full assembly (checked directly, then put back)
-for full, expect_blocked in ((False, True), (True, False)):
+# Hiding an existing object needs the Hide / Show toggle (checked directly, then put back)
+for allowed in (False, True):
     perms = {k: True for k in guard.CATEGORIES}
-    perms["full_assembly"] = full
+    perms["visibility"] = allowed
     snap = guard.Snapshot({"mode": "environment", "selection": {"objects": [], "faces": []}}, perms)
     base.hide_render = True
     problems, untracked = snap.check()
     base.hide_render = False
     got = any("hid or showed Base" in p for p in problems)
-    check(got == expect_blocked, f"hiding an object with Full assembly {'on' if full else 'off'}: "
-                                 f"{'blocked' if expect_blocked else 'allowed'}")
+    check(got != allowed, f"hiding an object with Hide / Show {'on: allowed' if allowed else 'off: blocked'}")
+    if not allowed:
+        check(snap.blocked_categories == ["visibility"] and not untracked,
+              "the guard names the one toggle that would allow it")
+
+# A blocked Preview says why, offers the toggle, and the retry then shows the preview
+HIDE = "for n in ('Shelf',):\n    o = bpy.data.objects[n]\n    o.hide_viewport = o.hide_render = True"
+check(not state.perm_env.visibility, "Hide / Show is off by default")
+stage("ENVIRONMENT", HIDE, "Hide the shelf", base)
+bpy.ops.claude2blender.preview_proposal()
+check(history.preview_entry() is None and not shelf.hide_render, "blocked preview: nothing changed, no preview left")
+check(state.status.startswith("Blocked by Allowed Changes") and "Hide / Show is off" in state.status
+      and "hid or showed Shelf" in state.status, "status says which toggle is off and what it blocked")
+check(state.blocked_perms == "visibility" and state.proposal_pending, "the proposal stays staged with the toggle to allow")
+check(bpy.ops.claude2blender.allow_retry.poll(), "Allow and preview again is offered")
+bpy.ops.claude2blender.allow_retry()
+check(state.perm_env.visibility and history.preview_entry() is not None and shelf.hide_render and shelf.hide_viewport,
+      "Allow and preview again: toggle on, preview showing")
+check(state.blocked_perms == "", "the blocked note is cleared")
+
+# The preview survives the events that used to be suspected of dropping it
+history._on_undo_redo()
+check(history.preview_entry() is not None and shelf.hide_render, "an undo/redo notification with the scene unchanged keeps the preview")
+history._on_save_pre()
+check(not shelf.hide_render, "saving: the preview is taken out of the file")
+history._on_save_post()
+check(history.preview_entry() is not None and shelf.hide_render, "after saving the preview is back")
+for area in (a for w in C.window_manager.windows for a in w.screen.areas):
+    area.tag_redraw()
+check(history.preview_entry() is not None, "a viewport redraw leaves the preview alone")
+bpy.ops.claude2blender.end_preview()
+check(not shelf.hide_render and not shelf.hide_viewport and state.proposal_pending, "End Preview reverts it; still staged")
+bpy.ops.claude2blender.preview_proposal()
+bpy.ops.claude2blender.apply_proposal()
+check(shelf.hide_render and history.entries()[-1]["summary"] == "Hide the shelf", "Apply keeps the hidden shelf")
+bpy.ops.claude2blender.history_undo()
+check(not shelf.hide_render and not shelf.hide_viewport, "and Undo shows it again")
+state.perm_env.visibility = False
 
 
 # ---------------------------------------------------------------- 2. product camera angle

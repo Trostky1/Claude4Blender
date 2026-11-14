@@ -104,7 +104,8 @@ SCENE_HELPERS_PROMPT = """Scene helpers (`c2b`), all in world space, metres, +Z 
 - c2b.color("#hex") -> linear RGB.
 request["permissions"] lists what you may change (allowed / not_allowed / movable). Anything outside it is
 rolled back automatically, so stay inside it and say in message if the reference needs more (e.g. "allow
-Camera to match the angle"). request["scene"]["layout"] has world-space positions, bounding boxes, parents,
+Camera to match the angle"). Hiding or showing the user's existing objects (a floor, props) is only possible
+when "Hide / Show" is allowed: set obj.hide_viewport and obj.hide_render together, never delete. request["scene"]["layout"] has world-space positions, bounding boxes, parents,
 lights, cameras, world and render settings."""
 
 ENVIRONMENT_PROMPT = """Environment mode: recreate the reference's lighting and environment as a real, editable

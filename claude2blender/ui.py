@@ -113,10 +113,11 @@ class C2B_PT_main(_Base, Panel):
             sub = layout.column()
             sub.scale_y = 0.8
             sub.label(text=f"Last sent {state.request_summary}", icon="CHECKMARK")
-        if state.status and state.gen_status == "IDLE":
-            sub = layout.column()
+        if state.status and state.gen_status == "IDLE" and not state.status.startswith(PROBLEM_PREFIXES):
+            sub = layout.column(align=True)
             sub.scale_y = 0.8
-            sub.label(text=state.status, icon="INFO")
+            for i, line in enumerate(claude_cli.wrap(state.status, _text_width(context) - 4)[:4]):
+                sub.label(text=line, icon="INFO" if i == 0 else "BLANK1")
 
 
 def _draw_permissions(layout, context, state):
@@ -138,6 +139,11 @@ def _draw_permissions(layout, context, state):
     grid = col.grid_flow(row_major=True, columns=2, even_columns=True, align=True)
     for key, label, icon, _desc in PERMISSION_ITEMS:
         grid.prop(group, key, text=label, icon=icon, toggle=True)
+    if perms.get("visibility"):
+        sub = col.column(align=True)
+        sub.scale_y = 0.8
+        sub.active = False
+        sub.label(text="Claude may hide or show your objects", icon="HIDE_OFF")
     moves = perms["positions"] or perms["rotations"] or perms["spacing"]
     if state.mode == "COMPOSITION" or moves:
         col.separator(factor=0.4)
@@ -286,6 +292,8 @@ def _draw_status_card(layout, context, state, running):
     if state.gen_outcome == "STAGED" and state.proposal_pending:
         col.separator(factor=0.5)
         _draw_review_buttons(col)
+        # A blocked Preview/Apply looks like a flash in the viewport: say why right under the buttons.
+        _draw_blocked(col, context, state, max_lines=5)
 
     if state.gen_message:
         row = col.row()
@@ -371,6 +379,33 @@ def _draw_review_buttons(layout):
     else:
         row.operator("claude2blender.end_preview", text="End Preview", icon="HIDE_ON")
     row.operator("claude2blender.apply_proposal", text="Apply", icon="CHECKMARK")
+
+
+PROBLEM_PREFIXES = ("Blocked", "Rolled back", "Preserve Geometry", "Apply failed", "Preview ended",
+                    "Preview could not")
+
+
+def _draw_blocked(layout, context, state, max_lines=8):
+    """Why the last Preview/Apply was not kept, in full, with a one-click way to allow it."""
+    if state.last_apply_ok or not state.status.startswith(PROBLEM_PREFIXES):
+        return False
+    box = layout.box()
+    warn = box.column(align=True)
+    warn.scale_y = 0.8
+    warn.alert = True
+    lines = claude_cli.wrap(state.status, _text_width(context) - 4)
+    for i, line in enumerate(lines[:max_lines]):
+        warn.label(text=line, icon="ERROR" if i == 0 else "BLANK1")
+    if len(lines) > max_lines:
+        warn.label(text="…", icon="BLANK1")
+    if state.proposal_pending and state.blocked_perms and history.preview_entry() is None:
+        from . import guard
+        names = [guard.LABELS.get(k, k) for k in state.blocked_perms.split(",")]
+        text = "Allow " + ", ".join(names[:2]) + (f" +{len(names) - 2}" if len(names) > 2 else "")
+        row = box.row()
+        row.scale_y = 1.2
+        row.operator("claude2blender.allow_retry", text=text + " and preview again", icon="CHECKMARK")
+    return True
 
 
 def _supports_placeholder():
@@ -557,13 +592,7 @@ class C2B_PT_apply(_Base, Panel):
             col.scale_y = 0.85
             col.label(text="No change staged yet", icon="TIME")
             col.label(text="Claude's changes wait here for your review.")
-        if not state.last_apply_ok and state.status.startswith(
-                ("Blocked", "Rolled back", "Preserve Geometry", "Apply failed")):
-            warn = layout.column(align=True)
-            warn.scale_y = 0.8
-            warn.alert = True
-            for i, line in enumerate(claude_cli.wrap(state.status, _text_width(context))[:4]):
-                warn.label(text=line, icon="ERROR" if i == 0 else "BLANK1")
+        _draw_blocked(layout, context, state)
         if state.target_notes:
             warn = layout.column(align=True)
             warn.scale_y = 0.8

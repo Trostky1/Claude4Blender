@@ -518,6 +518,16 @@ def trace(message, stack=False):
         pass
 
 
+def _notify(text):
+    """Tell the user, in the panel, why a preview is no longer showing."""
+    try:
+        state = bpy.context.window_manager.claude2blender
+        state.status = text
+        state.last_apply_ok = False
+    except Exception:
+        pass
+
+
 def preview_entry():
     return _preview
 
@@ -610,8 +620,10 @@ def _on_save_post(*_args):
     if st["preview"] and _preview is not None:
         try:
             reapply(_preview)
-        except HistoryError:
-            pass
+        except HistoryError as exc:
+            trace(f"save_post: could not bring the preview back: {exc}")
+            _notify("Preview ended: it could not be restored after saving. Press Preview to show it again.")
+            end_preview(keep=False)
 
 
 # ---------------------------------------------------------------- patching
@@ -938,6 +950,7 @@ def sync_after_native_undo():
         trace(f"undo/redo handler: preview state={_preview['state']} detected={state} ok={ok}")
         if not ok:
             # Ctrl+Z took the preview back: forget it (the scene is already as before).
+            _notify("Preview ended: Undo (Ctrl+Z) took it back. Press Preview to show it again.")
             _preview["state"] = UNDONE
             try:
                 _drop_patch(_preview)
