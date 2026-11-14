@@ -330,9 +330,11 @@ how it was before. If anything changed outside the toggles, the whole change is
 taken back on the spot and the panel says what was blocked, for example
 "Camera is off: changed camera settings of Camera". The proposal stays staged,
 so you can allow it or ask Claude for another version. These are always blocked
-in both modes: deleting anything, re-parenting, adding constraints, hiding your
-objects, changing their materials (use Material mode), and moving objects that
-aren't movable. Preserve Geometry still guards meshes, UVs, scale and modifiers.
+in both modes: deleting anything, re-parenting, adding constraints, changing
+their materials (use Material mode), and moving objects that aren't movable.
+Hiding or showing your existing objects is blocked too, unless **Full assembly**
+is on (for example, to hide a floor or props before a clean render).
+Preserve Geometry still guards meshes, UVs, scale and modifiers.
 
 ### Preview
 

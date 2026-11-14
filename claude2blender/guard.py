@@ -15,9 +15,10 @@ Categories:
   output     render engine and output resolution
 
 Always blocked in these modes: deleting anything, re-parenting, constraints,
-hiding or swapping the data of existing objects, editing their materials,
-and moving anything that isn't movable (the selection, or the full assembly
-when that is allowed). Geometry, scale and modifiers are Preserve
+swapping the data of existing objects, editing their materials, hiding or
+showing existing objects unless the full assembly is allowed, and moving
+anything that isn't movable (the selection, or the full assembly when that
+is allowed). Geometry, scale and modifiers are Preserve
 Geometry's job.
 """
 
@@ -136,8 +137,8 @@ class Snapshot:
                 if "constraints" in changed:
                     forbid(f"constraints changed on {name}")
                     untracked = True
-                if changed & {"hide_viewport", "hide_render"}:
-                    forbid(f"hid or showed {name}")
+                if changed & {"hide_viewport", "hide_render"} and not perms.get("full_assembly"):
+                    forbid(f"hid or showed {name} (turn on Full assembly to allow hiding objects)")
                 if "slots" in changed:
                     forbid(f"changed the materials of {name} (use Material mode)")
                 if "data" in changed:

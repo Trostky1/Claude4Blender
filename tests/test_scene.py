@@ -275,6 +275,18 @@ bpy.data.objects.remove(tmp)
 problems, untracked = snap.check()
 check(problems and "deleted Temp Light" in problems[0] and untracked, "deleting a scene element is always blocked")
 
+# Hiding an existing object needs Full assembly (checked directly, then put back)
+for full, expect_blocked in ((False, True), (True, False)):
+    perms = {k: True for k in guard.CATEGORIES}
+    perms["full_assembly"] = full
+    snap = guard.Snapshot({"mode": "environment", "selection": {"objects": [], "faces": []}}, perms)
+    base.hide_render = True
+    problems, untracked = snap.check()
+    base.hide_render = False
+    got = any("hid or showed Base" in p for p in problems)
+    check(got == expect_blocked, f"hiding an object with Full assembly {'on' if full else 'off'}: "
+                                 f"{'blocked' if expect_blocked else 'allowed'}")
+
 
 # ---------------------------------------------------------------- 2. product camera angle
 
