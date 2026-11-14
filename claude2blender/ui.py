@@ -4,7 +4,7 @@ import time
 import bpy
 from bpy.types import Panel, UIList
 
-from . import bridge, claude_cli, history
+from . import bridge, claude_cli, history, version
 from .properties import PERMISSION_ITEMS, ROLE_ICONS, get_state, permissions_for
 from .references import icon_for
 
@@ -45,9 +45,22 @@ class C2B_PT_main(_Base, Panel):
     def draw_header(self, context):
         self.layout.label(icon="LIGHT_SUN")
 
+    def draw_header_preset(self, context):
+        row = self.layout.row()
+        row.active = False
+        row.label(text="v" + version.LOADED)
+
     def draw(self, context):
         layout = self.layout
         state = get_state(context)
+
+        if version.restart_needed():
+            box = layout.box()
+            col = box.column(align=True)
+            col.alert = True
+            col.label(text=f"Version {version.installed()} is installed", icon="ERROR")
+            col.label(text=f"but {version.LOADED} is still running.")
+            col.label(text="Quit and reopen Blender to finish updating.")
 
         # Optional Claude Desktop fallback (through the Blender MCP add-on). Generate with
         # Claude doesn't need it, so nothing is shown when that add-on isn't installed.
@@ -522,8 +535,31 @@ class C2B_PT_references(_Base, Panel):
                 box.template_icon(icon_value=thumb, scale=7.0)
             else:
                 box.label(text="File not found", icon="ERROR")
-            box.prop(ref, "note", text="", icon="TEXT")
+            if _supports_placeholder():
+                box.prop(ref, "note", text="", icon="TEXT", placeholder="Note for this image (optional)")
+            else:
+                box.prop(ref, "note", text="", icon="TEXT")
             box.operator("claude2blender.open_reference", text="Open Image", icon="FILE_IMAGE")
+
+        # Enter only confirms a text field in Blender, so sending needs its own button right here.
+        images = sum(1 for r in state.references if os.path.isfile(bpy.path.abspath(r.filepath)))
+        notes = sum(1 for r in state.references if r.note.strip())
+        missing = len(state.references) - images
+        col = layout.column(align=True)
+        info = col.column(align=True)
+        info.scale_y = 0.8
+        info.active = False
+        info.label(text=f"{images} image{'s' if images != 1 else ''}, {notes} note{'s' if notes != 1 else ''} "
+                        "will be sent with your prompt", icon="INFO")
+        if missing:
+            info.label(text=f"{missing} file{'s' if missing != 1 else ''} not found and left out", icon="ERROR")
+        info.label(text="Enter saves a note. Press Send to ask.", icon="BLANK1")
+        row = col.row()
+        row.scale_y = 1.3
+        if claude_cli.busy():
+            row.operator("claude2blender.cancel_generate", text="Cancel", icon="CANCEL")
+        else:
+            row.operator("claude2blender.generate", text="Send to " + state.backend.title(), icon="PLAY")
 
 
 class C2B_PT_apply(_Base, Panel):

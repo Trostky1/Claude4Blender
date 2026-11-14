@@ -778,6 +778,14 @@ class C2B_Preferences(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
         state = get_state(context)
+        from . import version
+        row = layout.row()
+        row.label(text=f"Claude2Blender {version.LOADED} is running", icon="INFO")
+        if version.restart_needed():
+            row = layout.row()
+            row.alert = True
+            row.label(text=f"Version {version.installed()} is installed. Quit and reopen Blender to finish updating.",
+                      icon="ERROR")
         layout.prop(state, "backend")
         layout.prop(self, state.backend+"_path")
         layout.prop(self, state.backend+"_model")

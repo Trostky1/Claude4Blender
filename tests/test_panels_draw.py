@@ -66,6 +66,8 @@ def draw_all(label):
         p = FakePanel()
         if hasattr(cls, "draw_header"):
             cls.draw_header(p, bpy.context)
+        if hasattr(cls, "draw_header_preset"):
+            cls.draw_header_preset(p, bpy.context)
         cls.draw(p, bpy.context)
     print("  ok: panels draw:", label)
 
@@ -123,6 +125,9 @@ draw_all("completed: scene summary")
 state.status = "Blocked by Allowed Changes. Camera is off: changed camera settings of Camera"
 state.last_apply_ok = False
 draw_all("blocked status")
+state.proposal_pending = True; state.proposal_code = "x = 1"; state.blocked_perms = "camera,visibility"
+draw_all("blocked status with the allow-and-retry button")
+state.proposal_pending = False; state.blocked_perms = ""
 ui.C2B_UL_references.draw_item(None, bpy.context, Layout(), state, r, 0, state, "active_reference", 0)
 
 bpy.app.driver_namespace["claude2blender"].stage_proposal("x = 1\ny = 2", "demo")

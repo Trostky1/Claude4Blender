@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "claude2blender"
-version = "0.7.3"
+version = "0.7.4"
 name = "Claude2Blender"
 tagline = "Reviewable product studio workflows with Claude or Codex"
 maintainer = "Talus"
